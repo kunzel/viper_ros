@@ -1,0 +1,35 @@
+<launch>
+  <arg name="camera" default="/camera/depth_registered/points"/>
+  <arg name="soma_map" default="bham"/>
+  <arg name="soma_conf" default="main"/>
+
+
+  <!-- VIEW PLANNING -->
+  <include file="$(find scitos_moveit_config)/launch/move_group.launch"/>
+  <node name="ptu_fk" pkg="viper" type="ptu_fk"/>
+  <param name="inflation_radius" type="double" value="0.1" />  
+  <param name="views_at_pose" type="int" value="5" />  
+
+
+  <!-- VIEW EVALUATION -->  
+  <arg name="robot" default="scitos"/>
+  <include file="$(find viper)/launch/$(arg robot)/_evalaute_views.launch"/>
+    
+
+  <!-- NAV GOAL GENERATOR -->
+  <arg name="map" default="/move_base/global_costmap/costmap"/>  
+  <arg name="is_costmap" default="true"/>
+  <include file="$(find nav_goals_generator)/launch/nav_goals_generator.launch">
+    <arg name="map" value="$(arg map)"/>
+    <arg name="is_costmap" default="$(arg is_costmap)"/>
+  </include>
+
+
+  <!-- ACTION SERVER -->
+  <node name="view_planner" pkg="viper_ros" type="view_planner.py" output="screen">
+    <param name="camera" type="string" value="$(arg camera)"/>
+    <param name="soma_map" type="string" value="$(arg soma_map)"/>
+    <param name="soma_conf" type="string" value="$(arg soma_conf)"/>
+    <param name="num_of_views" type="int" value="15" />  
+  </node>
+</launch>

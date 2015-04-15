@@ -1,0 +1,7 @@
+# Define the goal
+---
+# Define the result
+string[] objects
+---
+# Define a feedback message
+float32 percentage_complete

@@ -1,0 +1,4 @@
+---
+bool has_next_view
+geometry_msgs/Pose robot_pose
+sensor_msgs/JointState ptu_state
