@@ -26,7 +26,7 @@ class ViewPlanning(smach.State):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted'],
                              input_keys=['num_of_views'],
-                             output_keys=['views'])
+                             output_keys=['views','state'])
         self.robot_poses_pub = rospy.Publisher('robot_poses', PoseArray, queue_size=100)
 
     def get_current_view(self):
@@ -54,6 +54,9 @@ class ViewPlanning(smach.State):
         return current_view
         
     def execute(self, userdata):
+        rospy.loginfo('Executing state %s', self.__class__.__name__)
+        userdata.state = self.__class__.__name__
+        
         robot = ScitosRobot()
         NUM_OF_VIEWS = userdata.num_of_views
 

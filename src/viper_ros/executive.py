@@ -27,34 +27,7 @@ class Executive(smach.State):
         smach.State.__init__(self,
                              outcomes=['succeeded','aborted', 'preempted'],
                              input_keys= ['views','has_next_view'],
-                             output_keys = ['has_next_view','state','plan_length','percentage_complete','robot_pose','ptu_state'])
-
-        self.next_view_requested = False
-        self.percentage_complete = 0
-
-    #     service_name = 'next_view'
-    #     try:
-    #         rospy.wait_for_service(service_name, timeout=1)
-    #     except:
-    #         rospy.loginfo('Setting up service: %s', service_name )
-    #         self.nv_service = rospy.Service(service_name, NextView, self.next_view)
-    #         rospy.loginfo('Service running: %s', service_name )
-
-    # def next_view(self, req):
-    #     res = NextViewResponse()
-    #     if self.views == []:
-    #         self.has_next_view = False
-    #         res.has_next_view = False
-    #         return res
-
-
-    #     view = self.views.pop(0)
-    #     self.percentage_complete  = (float((self.plan_length - len(self.views))) / float(self.plan_length))  * 100
-    #     self.next_view_requested = True
-    #     res.has_next_view = True
-    #     res.robot_pose = view.get_robot_pose()
-    #     res.ptu_state  = view.get_ptu_state()
-    #     return res
+                             output_keys = ['has_next_view','state','plan_length','percentage_complete'])
         
     def execute(self, userdata):
         rospy.loginfo('Executing state %s', self.__class__.__name__)
@@ -72,13 +45,5 @@ class Executive(smach.State):
                 userdata.percentage_complete = 100.0
                 rospy.loginfo('View list is empty.')
                 return 'succeeded'
-
-            if self.next_view_requested:
-                userdata.percentage_complete  = self.percentage_complete
-                self.has_view_requested = False
-
             r.sleep()
-
-
         return 'succeeded'
-

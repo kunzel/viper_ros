@@ -15,9 +15,12 @@ class Shutdown(smach.State):
 
     def __init__(self):
         smach.State.__init__(self,
-                             outcomes=['succeeded', 'aborted', 'preempted'])
+                             outcomes=['succeeded', 'aborted', 'preempted'],
+                             output_keys=['state'])
 
 
     def execute(self, userdata):
+        rospy.loginfo('Executing state %s', self.__class__.__name__)
+        userdata.state = self.__class__.__name__
         return 'succeeded'
 

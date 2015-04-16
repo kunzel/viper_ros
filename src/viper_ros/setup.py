@@ -19,9 +19,11 @@ class Setup(smach.State):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted'],
                              input_keys=['soma_map', 'soma_conf', 'roi_id'],
-                             output_keys=[])
+                             output_keys=['state'])
 
     def execute(self, userdata):
+        rospy.loginfo('Executing state %s', self.__class__.__name__)
+        userdata.state = self.__class__.__name__
         # Get ROI from mongoDB
         soma_map  = userdata.soma_map
         soma_conf = userdata.soma_conf

@@ -16,7 +16,6 @@ _EPSILON = 0.0001
 
 class ViewPlannerServer:
 
-
     _feedback = viper_ros.msg.ViewPlanningFeedback()
     _result   = viper_ros.msg.ViewPlanningResult()
     
@@ -29,9 +28,8 @@ class ViewPlannerServer:
 
         self._as.start()
         rospy.loginfo('Started action server for view planning')
+        self._is_active = False        
 
-        self._is_active = False
-        
         service_name = 'next_view'
         try:
             rospy.wait_for_service(service_name, timeout=1)
@@ -42,21 +40,21 @@ class ViewPlannerServer:
 
     def next_view(self, req):
         res = NextViewResponse()
+        # if AS has no goal request, ie it is not active return False
         if not self._is_active:
             res.has_next_view = False
             return res
-        
+            
+        # if current plan is empty, return False AND finish SM
         if self.sm.userdata.views == []:
             self.sm.userdata.has_next_view = False
             res.has_next_view = False
             return res
 
-
+        # get next view
         view = self.sm.userdata.views.pop(0)
-
-        self.percentage_complete  = (float((self.sm.userdata.plan_length - len(self.sm.userdata.views))) / float(self.sm.userdata.plan_length))  * 100
-        self.sm.userdata.percentage_complete = self.percentage_complete
-        self.next_view_requested = True
+        # calc percentage of completion
+        self.sm.userdata.percentage_complete = (float((self.sm.userdata.plan_length - len(self.sm.userdata.views))) / float(self.sm.userdata.plan_length))  * 100
         res.has_next_view = True
         res.robot_pose = view.get_robot_pose()
         res.ptu_state  = view.get_ptu_state()
@@ -109,8 +107,9 @@ class ViewPlannerServer:
             if userdata.num_of_views == 0:
                 self._feedback.percentage_complete = 0
             else:
-                self._feedback.percentage_complete = userdata.percentage_complete #(float(userdata.current_view) / float(userdata.plan_lentgh)) * 100
-                print self._feedback.percentage_complete
+                self._feedback.status = userdata.state 
+                self._feedback.percentage_complete = userdata.percentage_complete 
+                rospy.loginfo('Progress: %s%%' % str(self._feedback.percentage_complete))
 
             self._as.publish_feedback(self._feedback)
             r.sleep()
