@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import rospy
 import json
+import tf
 from viper_ros.srv import Perceive, PerceiveResponse
 from geometry_msgs.msg import PoseArray
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
+from sensor_msgs.msg import PointCloud2
 
 ################################################################
 # Perception service
@@ -34,6 +36,14 @@ class PerceptionService():
             res.types   = []
             res.poses   = PoseArray()
             try:
+                # Get frame of depth cam
+                # rospy.loginfo("Wait for '/head_xtion/depth/points'")
+                # pointcloud = rospy.wait_for_message('/head_xtion/depth/points', PointCloud2, timeout=10.0)
+                # rospy.loginfo("Received msg from '/head_xtion/depth/points'")
+                # print pointcloud.header.frame_id
+
+                # TODO: Transform relative object pose into /map frame 
+                
                 rospy.loginfo("Wait for /semcam")
                 msg = rospy.wait_for_message("/semcam", String, timeout=10.0)
                 rospy.loginfo("Received msg from /semcam")

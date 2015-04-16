@@ -25,11 +25,15 @@
   </include>
 
 
-  <!-- ACTION SERVER -->
+  <!-- VIEW PLANNING ACTION SERVER -->
   <node name="view_planner" pkg="viper_ros" type="view_planner.py" output="screen">
     <param name="camera" type="string" value="$(arg camera)"/>
     <param name="soma_map" type="string" value="$(arg soma_map)"/>
     <param name="soma_conf" type="string" value="$(arg soma_conf)"/>
     <param name="num_of_views" type="int" value="15" />  
   </node>
+  
+  <!-- PERCEPTION SERVICE -->
+  <node name="perception_service" pkg="viper_ros" type="perception_service.py" output="screen"/>
+  
 </launch>

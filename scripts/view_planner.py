@@ -42,12 +42,14 @@ class ViewPlannerServer:
         res = NextViewResponse()
         # if AS has no goal request, ie it is not active return False
         if not self._is_active:
+            res.is_active = False 
             res.has_next_view = False
             return res
             
         # if current plan is empty, return False AND finish SM
         if self.sm.userdata.views == []:
             self.sm.userdata.has_next_view = False
+            res.is_active = False 
             res.has_next_view = False
             return res
 
@@ -55,7 +57,11 @@ class ViewPlannerServer:
         view = self.sm.userdata.views.pop(0)
         # calc percentage of completion
         self.sm.userdata.percentage_complete = (float((self.sm.userdata.plan_length - len(self.sm.userdata.views))) / float(self.sm.userdata.plan_length))  * 100
-        res.has_next_view = True
+        res.is_active = True
+        if self.sm.userdata.views != []:
+            res.has_next_view = True
+        else:
+            res.has_next_view = False
         res.robot_pose = view.get_robot_pose()
         res.ptu_state  = view.get_ptu_state()
         return res
