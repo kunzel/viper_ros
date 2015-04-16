@@ -59,13 +59,12 @@ catkin_python_setup()
 add_service_files(
    FILES
    NextView.srv
-#   Service2.srv
+   Perceive.srv
 )
 
 ## Generate actions in the 'action' folder
 add_action_files(
    FILES
-   Perceive.action
    ViewPlanning.action
 )
 
