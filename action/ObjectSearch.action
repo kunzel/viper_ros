@@ -1,0 +1,11 @@
+# Define the goal
+string waypoint  # Specify the waypoint to get associated octomap
+string roi_id    # Specify a ROI that you want to observe
+string[] objects # Specify the objects that you want to search
+---
+# Define the result
+uint32 status_code
+string[] found_objects # Found objects   
+---
+# Define a feedback message
+float32 percent_complete
