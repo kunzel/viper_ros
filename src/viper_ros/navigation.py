@@ -49,11 +49,13 @@ class GoTo(smach.State):
       	goal = MonitoredNavigationGoal()
 	goal.action_server = 'move_base'
       	goal.target_pose.header.frame_id = 'map'
-      	goal.target_pose.header.stamp = rospy.Time.now()
+      	goal.target_pose.header.stamp = rospy.get_rostime() #rospy.Time.now()
       	goal.target_pose.pose = pose
       	self.nav_client.send_goal(goal)
       	self.nav_client.wait_for_result()
+        print self.nav_client.get_state()
         res = self.nav_client.get_result()
+        rospy.loginfo("Result: %s", str(res))
 	if res.outcome != 'succeeded':
 	  return 'aborted'
         rospy.loginfo("Reached nav goal")

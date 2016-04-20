@@ -23,13 +23,14 @@ def get_services():
 if __name__ == '__main__':
     rospy.init_node("demand_object_search_task")
 
-    if len(sys.argv)==3:
+    if len(sys.argv)==4:
         waypoint=sys.argv[1]
         roi=sys.argv[2]
+        surface_roi=sys.argv[3]
         print "Using waypoint: ", waypoint
         print "Using ROI: ", roi
     else:
-        print "Usage: demand_object_search_task.py waypoint roi_id"
+        print "Usage: demand_object_search_task.py waypoint roi_id surface_ros_id"
         sys.exit(1)
 
     # get services to call into execution framework
@@ -42,6 +43,7 @@ if __name__ == '__main__':
     task= Task(action='search_object', max_duration=rospy.Duration(600), start_node_id=waypoint)
     task_utils.add_string_argument(task, waypoint)
     task_utils.add_string_argument(task, roi)
+    task_utils.add_string_argument(task, surface_roi)
     task_utils.add_string_argument(task, "['asus_box']")
     resp = demand_task(task)
     print 'demanded task as id: %s' % resp.task_id
