@@ -1,6 +1,7 @@
 # Define the goal
 string waypoint  # Specify the waypoint to get associated octomap
-string roi_id    # Specify a ROI that you want to observe
+string roi_id    # Specify a ROI FROM that you want to observe
+string surface_roi_id    # Specify a ROI surface that you want to observe
 string[] objects # Specify the objects that you want to search
 ---
 # Define the result

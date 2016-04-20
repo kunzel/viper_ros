@@ -8,6 +8,10 @@ from std_msgs.msg import *
 from sensor_msgs.msg import *
 from geometry_msgs.msg import *
 
+from geometry_msgs.msg import Point32
+
+from viper.srv import GetKeys, GetKeysRequest
+
 import viper
 from viper.robots.scitos_simple import ScitosRobot
 
@@ -26,6 +30,54 @@ from interactive_markers.interactive_marker_server import *
 from visualization_msgs.msg import MarkerArray
 from std_msgs.msg import ColorRGBA
 
+
+################################################################
+# Ray-casting algorithm
+#
+# adapted from http://rosettacode.org/wiki/Ray-casting_algorithm
+################################################################
+_eps = 0.00001
+
+def ray_intersect_seg(p, a, b):
+    ''' takes a point p and an edge of two endpoints a,b of a line segment returns boolean
+    '''
+    if a.y > b.y:
+        a,b = b,a
+    if p.y == a.y or p.y == b.y:
+        p = Point32(p.x, p.y + _eps, 0)
+
+    intersect = False
+
+    if (p.y > b.y or p.y < a.y) or (
+        p.x > max(a.x, b.x)):
+        return False
+
+    if p.x < min(a.x, b.x):
+        intersect = True
+    else:
+        if abs(a.x - b.x) > sys.float_info.min:
+            m_red = (b.y - a.y) / float(b.x - a.x)
+        else:
+            m_red = sys.float_info.max
+        if abs(a.x - p.x) > sys.float_info.min:
+            m_blue = (p.y - a.y) / float(p.x - a.x)
+        else:
+            m_blue = sys.float_info.max
+        intersect = m_blue >= m_red
+    return intersect
+
+def is_odd(x): return x%2 == 1
+
+def is_inside(p, poly):
+    ln = len(poly)
+    num_of_intersections = 0
+    for i in range(0,ln):
+        num_of_intersections += ray_intersect_seg(p, poly[i], poly[(i + 1) % ln])
+
+    return is_odd(num_of_intersections)
+
+
+
 class ViewPlanning(smach.State):
     """
     View planning
@@ -35,7 +87,7 @@ class ViewPlanning(smach.State):
     def __init__(self):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted'],
-                             input_keys=['waypoint','num_of_views','objects'],
+                             input_keys=['waypoint','num_of_views','objects', 'surface_roi_id'],
                              output_keys=['views'])
         self.robot_poses_pub = rospy.Publisher('robot_poses', PoseArray, queue_size=100)
         self.vis = Vis()
@@ -66,20 +118,24 @@ class ViewPlanning(smach.State):
         current_view =  viper.robots.scitos.ScitosView(-1, current_pose, current_ptu_state, None) # ptu pose is not needed for cost calculation
         return current_view
         
+    def in_roi(self, pose, roi):
+
+        p = Point32(pose.position.x,pose.position.y,0)        
+        return is_inside(p, roi.points)
+        
+    
     def execute(self, userdata):
         robot = ScitosRobot()
+        MIN_COVERAGE = rospy.get_param('~min_overage', 0.95)
         NUM_OF_VIEWS = userdata.num_of_views
 
-        planner = ViewPlanner(robot)
-        
-        rospy.loginfo('Generate views.')
-        views = planner.sample_views(NUM_OF_VIEWS)
-        rospy.loginfo('Generate views. Done. (%s views have been generated)' % len(views))
+        surface_roi = rospy.get_param('surface_roi',[])
+        points = []
+        for point in surface_roi:
+            rospy.loginfo('Point: %s', point)
+            points.append(Point32(float(point[0]),float(point[1]),0))
 
-        if self.preempt_requested():
-            self.service_preempt()
-            return 'preempted'
-
+        surface_polygon = Polygon(points) 
 
         octomap = Octomap()
         #octomap_service_name = '/Semantic_map_publisher_node/SemanticMapPublisher/ObservationOctomapService'
@@ -100,12 +156,57 @@ class ViewPlanning(smach.State):
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s"%e)
         
-        view_values = planner.compute_view_values(views, octomap)
 
         if self.preempt_requested():
             self.service_preempt()
             return 'preempted'
 
+        rospy.loginfo("Waiting for octomap get-keys service")
+        service_name = '/get_keys'
+        rospy.wait_for_service(service_name)
+        rospy.loginfo("Done")
+
+        voxel_marker = MarkerArray() 
+        self.vis.voxel_id = 0
+        try:
+            service = rospy.ServiceProxy(service_name, GetKeys)
+            req = GetKeysRequest()
+            req.octomap = octomap
+            rospy.loginfo("Requesting keys from octomap get-keys service")
+            res = service(req)
+
+            #octomap_keys = res.keys
+            octomap_keys = []
+            # JUST USE THE KEYS THAT ARE IN THE SURFCE ROI
+            for i,pose in enumerate(res.posearray.poses):
+                if self.in_roi(pose,surface_polygon):
+                    self.vis.create_voxel_marker(voxel_marker, pose)
+                    octomap_keys.append(res.keys[i])
+
+
+
+            rospy.loginfo("Received octomap_keys: size:%s", len(octomap_keys))
+            print "OCTOMAP KEYS", octomap_keys
+    
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: %s"%e)
+            
+        self.vis.pubvoxel.publish(voxel_marker)
+    
+        if self.preempt_requested():
+            self.service_preempt()
+            return 'preempted'
+
+        planner = ViewPlanner(robot)
+        rospy.loginfo('Generate views.')
+        views = planner.sample_views_coverage_in_roi(NUM_OF_VIEWS, MIN_COVERAGE, octomap, octomap_keys)
+        rospy.loginfo('Generate views. Done. (%s views have been generated)' % len(views))
+
+        if self.preempt_requested():
+            self.service_preempt()
+            return 'preempted'
+
+        view_values = planner.compute_view_values(views, octomap)
 
         rospy.loginfo("Waiting for soma pcl segmenation")
         service_name = '/soma_probability_at_view'
@@ -172,7 +273,7 @@ class ViewPlanning(smach.State):
         rospy.loginfo("Started plan sampling.")
 
         #plans = planner.sample_plans(NUM_OF_PLANS, PLAN_LENGTH, RHO, views, view_values, view_costs, current_view.ID)
-        plans = planner.sample_plans_IJCAI(NUM_OF_PLANS, TIME_WINDOW, RHO, int(len(views) * 0.3), views, view_values, view_costs, current_view, current_view)
+        plans = planner.sample_plans_IJCAI(NUM_OF_PLANS, TIME_WINDOW, RHO, min(10, len(views)), views, view_values, view_costs, current_view, current_view)
 
         
         rospy.loginfo("Stopped plan sampling.")
@@ -271,7 +372,9 @@ class Vis(object):
     def __init__(self):
         self._server = InteractiveMarkerServer("evaluated_plans")
         self.pubfrustum = rospy.Publisher('frustums', MarkerArray, queue_size=100)
+        self.pubvoxel = rospy.Publisher('voxels', MarkerArray, queue_size=100)
         self.marker_id = 0
+        self.voxel_id = 0
 
         
     def _update_cb(self,feedback):
@@ -286,6 +389,27 @@ class Vis(object):
     def delete(self, plan):
         self._server.erase(plan.ID)
         self._server.applyChanges()
+
+    def create_voxel_marker(self, markerArray, pose):
+        marker1 = Marker()
+        marker1.id = self.voxel_id
+        self.voxel_id += 1
+        marker1.header.frame_id = "/map"
+        marker1.type = marker1.CUBE
+        marker1.action = marker1.ADD
+        marker1.scale.x = 0.05
+        marker1.scale.y = 0.05
+        marker1.scale.z = 0.05
+        marker1.color.a = 1.0
+
+        marker1.color.r = 0.0 
+        marker1.color.g = 0.9
+        marker1.color.b = 0.0
+        marker1.pose.orientation = pose.orientation
+        marker1.pose.position = pose.position
+
+        markerArray.markers.append(marker1)
+        
 
     def create_frustum_marker(self, markerArray, view, pose, view_values):
         marker1 = Marker()
@@ -310,7 +434,7 @@ class Vis(object):
 
         marker1.pose.orientation = pose.orientation
         marker1.pose.position = pose.position
-
+ 
         points = view.get_frustum()
 
         marker1.points.append(points[0])
