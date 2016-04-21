@@ -6,6 +6,7 @@ import json
 
 from std_msgs.msg import *
 from sensor_msgs.msg import *
+from world_modeling.srv import *
 
 from recognition_srv_definitions.srv import recognize, recognizeResponse, recognizeRequest
 
@@ -83,11 +84,17 @@ class PerceptionReal (smach.State):
         self.obj_list = []
 
         self.ir_service_name = '/recognition_service/mp_recognition'
-        rospy.loginfo('Wait for service %s', self.ir_service_name)
-        rospy.wait_for_service(self.ir_service_name)
+        #rospy.loginfo('Wait for service %s', self.ir_service_name)
+        #rospy.wait_for_service(self.ir_service_name)
+
+	self.wu_srv_name = "/update_world_model"
+
+	rospy.loginfo('Waiting for service %s', self.wu_srv_name)
+	rospy.wait_for_service(self.wu_srv_name)
 
         try:
-            self.ir_service = rospy.ServiceProxy(self.ir_service_name, recognize)
+           self.ir_service = rospy.ServiceProxy(self.ir_service_name, recognize)
+	   self.update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate) 
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s" % e)
             
@@ -108,16 +115,18 @@ class PerceptionReal (smach.State):
 
 
         # # get point cloud
-        # # try:
-        # #     rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
-        # #     pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
-        # #     rospy.loginfo('Got pointcloud')
-        # # except rospy.ROSException, e:
-        # #     rospy.logwarn("Failed to get %s" % self.pc_frame)
-        # #     return 'aborted'
+	try:
+		rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
+   		pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
+		rospy.loginfo('Got pointcloud')
+       		# pass pc to update service
+		self.update_service(pointcloud)
+	except rospy.ROSException, e:
+		rospy.logwarn("Failed to get %s" % self.pc_frame)
+		return 'aborted'
         # DEFAULT_TOPICS = [("/amcl_pose", PoseWithCovarianceStamped),
         #           ("/head_xtion/rgb/image_color", Image), 
-        #           ("/head_xtion/rgb/camera_info", CameraInfo), 
+        #           ("/head_xtio	n/rgb/camera_info", CameraInfo), 
         #           (self.pc_frame, PointCloud2),
         #           ("/head_xtion/depth/camera_info", CameraInfo),
         #           ("/ptu/state", JointState)]

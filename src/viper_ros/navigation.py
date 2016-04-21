@@ -53,7 +53,6 @@ class GoTo(smach.State):
       	goal.target_pose.pose = pose
       	self.nav_client.send_goal(goal)
       	self.nav_client.wait_for_result()
-        print self.nav_client.get_state()
         res = self.nav_client.get_result()
         rospy.loginfo("Result: %s", str(res))
 	if res.outcome != 'succeeded':

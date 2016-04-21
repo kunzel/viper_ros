@@ -3,7 +3,7 @@
   <!-- <arg name="camera" default="/camera/depth_registered/points"/> -->
   <arg name="soma_map" default="bham_lg"/>
   <arg name="soma_conf" default="bham_lg"/>
-  <arg name="perception" default="nill"/>
+  <arg name="perception" default="real"/>
   <param name="perception" type="string" value="$(arg perception)" />  
 
   <!-- VIEW PLANNING -->
