@@ -70,8 +70,55 @@ class PerceptionNill(smach.State):
             return 'found_all_objects'
         return 'succeeded' # perception succeeded, but not all objects has been found yet
 
+class PerceptionHuman(smach.State):
+    """
+    Perceive the environemt (or not).
 
-class PerceptionReal (smach.State):
+    """
+
+    def __init__(self):
+        smach.State.__init__(self,
+                             outcomes=['succeeded', 'aborted', 'preempted', 'found_all_objects'],
+                             input_keys=['found_objects','objects'],
+                             output_keys=['found_objects'])
+        self.found_objs = dict()
+
+        
+    def execute(self, userdata):
+        rospy.loginfo("Perceiving...")
+        rospy.sleep(3)
+
+        # init self.found_objs 
+        for obj in userdata.objects:
+            if obj not in self.found_objs:
+                self.found_objs[obj] = False
+
+        # set found objects to true
+        rospy.loginfo("*************")
+        for obj in userdata.objects:
+            import random
+            r = random.random()
+            if r > 0.999:
+                rospy.loginfo("FOUND: %s", obj)
+                self.found_objs[obj] = True
+            else:
+                rospy.loginfo("NOTHING FOUND")
+        rospy.loginfo("*************")
+        
+        found_all_objects = True
+        for obj in self.found_objs:
+            if self.found_objs[obj]:
+                if obj not in userdata.found_objects:
+                    userdata.found_objects.append(obj)
+            else:
+                found_all_objects = False
+
+        if found_all_objects:
+            return 'found_all_objects'
+        return 'succeeded' # perception succeeded, but not all objects has been found yet
+
+
+class PerceptionObj (smach.State):
     """ Perceive the environemt. """
 
     def __init__(self):
