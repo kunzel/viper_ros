@@ -4,6 +4,8 @@ import smach
 import smach_ros
 import json
 
+import tf
+import message_filters
 from std_msgs.msg import *
 from sensor_msgs.msg import *
 from world_modeling.srv import *
@@ -17,10 +19,148 @@ from recognition_srv_definitions.srv import recognize, recognizeResponse, recogn
 #from world_state.report import PointCloudVisualiser #, create_robblog
 #import world_state.geometry as geometry
 
+from bayes_people_tracker.msg import PeopleTracker
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
+from soma_manager.srv import SOMA2InsertObjs
+from soma_msgs2.msg import SOMA2Object
 
+import math
+import itertools
 import numpy as np
+import matplotlib.path as mathpath
+
+
+# Implementation of Shoelace formula
+# http://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates
+def poly_area(x, y):
+    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+
+
+# Finding the right polygon in case the lists of xs, ys are not properly ordered
+def get_polygon(xs, ys):
+    if poly_area(np.array(xs), np.array(ys)) == 0.0:
+        xs = [
+            [xs[0]] + list(i) for i in itertools.permutations(xs[1:])
+        ]
+        ys = [
+            [ys[0]] + list(i) for i in itertools.permutations(ys[1:])
+        ]
+        areas = list()
+        for ind in range(len(xs)):
+            areas.append(poly_area(np.array(xs[ind]), np.array(ys[ind])))
+        return mathpath.Path(
+            np.array(zip(xs[areas.index(max(areas))], ys[areas.index(max(areas))]))
+        )
+    else:
+        return mathpath.Path(np.array(zip(xs, ys)))
+
+
+class PerceptionPeople(smach.State):
+
+    def __init__(self):
+        smach.State.__init__(
+            self, outcomes=['succeeded', 'aborted', 'preempted'],
+            input_keys=['people_poses'], output_keys=['people_poses']
+        )
+
+        self.uuids = list()
+        self._ubd_pos = list()
+        self._tracker_pos = list()
+        self._tracker_uuids = list()
+        self._tfl = tf.TransformListener()
+        xs = [i[0] for i in rospy.get_param('surface_roi', [])]
+        ys = [i[1] for i in rospy.get_param('surface_roi', [])]
+        self.region = get_polygon(xs, ys)
+        self.subs = [
+            message_filters.Subscriber(
+                rospy.get_param("~ubd_topic", "/upper_body_detector/bounding_box_centres"),
+                PoseArray
+            ),
+            message_filters.Subscriber(
+                rospy.get_param("~tracker_topic", "/people_tracker/positions"),
+                PeopleTracker
+            )
+        ]
+        self.duration = rospy.Duration(
+            0.5 * rospy.get_param('~time_window', 120) / rospy.get_param('~num_of_views', 20)
+        )
+        self.insert_srv = rospy.ServiceProxy(
+            "/soma2/insert_objects", SOMA2InsertObjs
+        )
+        self.robot_pose = Pose()
+        rospy.Subscriber("/robot_pose", Pose, self.robot_cb, None, 10)
+
+    def robot_cb(self, pose):
+        self.robot_pose = pose
+
+    def cb(self, ubd_cent, pt):
+        self._tracker_uuids = pt.uuids
+        self._ubd_pos = self.to_world_all(ubd_cent)
+        self._tracker_pos = [i for i in pt.poses]
+
+    def to_world_all(self, pose_arr):
+        transformed_pose_arr = list()
+        try:
+            fid = pose_arr.header.frame_id
+            for cpose in pose_arr.poses:
+                ctime = self._tfl.getLatestCommonTime(fid, "/map")
+                pose_stamped = PoseStamped(Header(1, ctime, fid), cpose)
+                # Get the translation for this camera's frame to the world.
+                # And apply it to all current detections.
+                tpose = self._tfl.transformPose("/map", pose_stamped)
+                transformed_pose_arr.append(tpose.pose)
+        except tf.Exception as e:
+            rospy.logwarn(e)
+            # In case of a problem, just give empty world coordinates.
+            return []
+        return transformed_pose_arr
+
+    def execute(self, data):
+        start_time = rospy.Time.now()
+        ts = message_filters.ApproximateTimeSynchronizer(
+            self.subs, queue_size=5, slop=0.15
+        )
+        ts.registerCallback(self.cb)
+        rospy.sleep(0.5)
+        end_time = rospy.Time.now()
+        while not self.preempt_requested() and (end_time - start_time).secs <= self.duration.secs:
+            for i in self._ubd_pos:
+                for ind, j in enumerate(self._tracker_pos):
+                    # conditions to make sure that a person is not detected
+                    # twice and can be verified by UBD logging, also is inside
+                    # the surface (or target) region
+                    conditions = euclidean(
+                        [i.position.x, i.position.y], [j.position.x, j.position.y]
+                    ) < 0.3
+                    conditions = conditions and self._tracker_uuids[ind] not in self.uuids
+                    conditions = conditions and self.region.contains_point([i.position.x, i.position.y])
+                    is_near = False
+                    for pose in data.people_poses :
+                            euclidean(pose, [i.position.x, i.position.y]) < 0.3:
+                                is_near = True
+                                break
+                        conditions = conditions and (not is_near)
+                        if conditions:
+                            self.uuids.append(self._tracker_uuids[ind])
+                            data.people_poses.append([i.position.x, i.position.y])
+                            rospy.loginfo(
+                                "%d persons have been detected so far..." % len(data.people_poses)
+                            )
+                            human = SOMA2Object()
+                            human.id = self._tracker_uuids[ind]
+                            human.config = rospy.get_param('~soma_conf', "no_config")
+                            human.type = "Human"
+                            human.pose = i
+                            human.sweepCenter = self.robot_pose
+                            human.mesh = "package://soma_objects/meshes/plant_tall.dae"
+                            human.logtimestamp = rospy.Time.now().secs
+                            self.insert_srv([human])
+            end_time = rospy.Time.now()
+        if self.preempt_requested():
+            self.service_preempt()
+            return 'preempted'
+        return "succeeded"
 
 
 class PerceptionNill(smach.State):
@@ -36,12 +176,12 @@ class PerceptionNill(smach.State):
                              output_keys=['found_objects'])
         self.found_objs = dict()
 
-        
+
     def execute(self, userdata):
         rospy.loginfo("Perceiving...")
         rospy.sleep(3)
 
-        # init self.found_objs 
+        # init self.found_objs
         for obj in userdata.objects:
             if obj not in self.found_objs:
                 self.found_objs[obj] = False
@@ -57,7 +197,7 @@ class PerceptionNill(smach.State):
             else:
                 rospy.loginfo("NOTHING FOUND")
         rospy.loginfo("*************")
-        
+
         found_all_objects = True
         for obj in self.found_objs:
             if self.found_objs[obj]:
@@ -94,16 +234,16 @@ class PerceptionReal (smach.State):
 
         try:
            self.ir_service = rospy.ServiceProxy(self.ir_service_name, recognize)
-	   self.update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate) 
+	   self.update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s" % e)
-            
+
         #self._world = World()
         self.found_objs = dict()
         #self._pcv = PointCloudVisualiser()
 
     def execute(self, userdata):
-        # pass 
+        # pass
 
         # rospy.loginfo('Executing state %s', self.__class__.__name__)
         # self.obj_list = []
@@ -125,8 +265,8 @@ class PerceptionReal (smach.State):
 		rospy.logwarn("Failed to get %s" % self.pc_frame)
 		return 'aborted'
         # DEFAULT_TOPICS = [("/amcl_pose", PoseWithCovarianceStamped),
-        #           ("/head_xtion/rgb/image_color", Image), 
-        #           ("/head_xtio	n/rgb/camera_info", CameraInfo), 
+        #           ("/head_xtion/rgb/image_color", Image),
+        #           ("/head_xtio	n/rgb/camera_info", CameraInfo),
         #           (self.pc_frame, PointCloud2),
         #           ("/head_xtion/depth/camera_info", CameraInfo),
         #           ("/ptu/state", JointState)]
@@ -155,12 +295,12 @@ class PerceptionReal (smach.State):
 
         # ################################################################################
         # # Store result into mongodb_store
-        # # depth_to_world = tf.lookupTransform("/map", pointcloud.header.frame_id, 
+        # # depth_to_world = tf.lookupTransform("/map", pointcloud.header.frame_id,
         # #                                     pointcloud.header.stamp)
         # # print depth_to_world
         # # depth_to_world = geometry.Pose(geometry.Point(*(depth_to_world[0])),
         # #                                geometry.Quaternion(*(depth_to_world[1])))
-        
+
         # objects = res.ids
         # print "=" * 80
         # print "Perceived objects"
@@ -201,11 +341,11 @@ class PerceptionReal (smach.State):
         #         bbox_array.append([p.x, p.y, p.z])
         #     bbox = geometry.BBoxArray(bbox_array)
         #     new_object._bounding_box = bbox
-            
+
         # print "=" * 80, "\n"
 
 
-        # # init self.found_objs 
+        # # init self.found_objs
         # for obj in userdata.objects:
         #     if obj not in self.found_objs:
         #         self.found_objs[obj] = False
