@@ -23,7 +23,7 @@ from bayes_people_tracker.msg import PeopleTracker
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
 from soma_manager.srv import SOMA2InsertObjs
-from soma_msgs2.msg import SOMA2Object
+from soma2_msgs.msg import SOMA2Object
 
 import math
 import itertools
@@ -60,8 +60,8 @@ class PerceptionPeople(smach.State):
 
     def __init__(self):
         smach.State.__init__(
-            self, outcomes=['succeeded', 'aborted', 'preempted'],
-            input_keys=['people_poses'], output_keys=['people_poses']
+            self, outcomes=['succeeded', 'aborted', 'preempted', 'found_all_objects'],
+            input_keys=['people_poses', 'views_done'], output_keys=['people_poses', 'views_done']
         )
 
         self.uuids = list()
@@ -85,6 +85,7 @@ class PerceptionPeople(smach.State):
         self.duration = rospy.Duration(
             0.5 * rospy.get_param('~time_window', 120) / rospy.get_param('~num_of_views', 20)
         )
+        # print rospy.get_param('~time_window'), rospy.get_param('~num_of_views')
         self.insert_srv = rospy.ServiceProxy(
             "/soma2/insert_objects", SOMA2InsertObjs
         )
@@ -136,30 +137,33 @@ class PerceptionPeople(smach.State):
                     conditions = conditions and self._tracker_uuids[ind] not in self.uuids
                     conditions = conditions and self.region.contains_point([i.position.x, i.position.y])
                     is_near = False
-                    for pose in data.people_poses :
-                            euclidean(pose, [i.position.x, i.position.y]) < 0.3:
-                                is_near = True
-                                break
-                        conditions = conditions and (not is_near)
-                        if conditions:
-                            self.uuids.append(self._tracker_uuids[ind])
-                            data.people_poses.append([i.position.x, i.position.y])
-                            rospy.loginfo(
-                                "%d persons have been detected so far..." % len(data.people_poses)
-                            )
-                            human = SOMA2Object()
-                            human.id = self._tracker_uuids[ind]
-                            human.config = rospy.get_param('~soma_conf', "no_config")
-                            human.type = "Human"
-                            human.pose = i
-                            human.sweepCenter = self.robot_pose
-                            human.mesh = "package://soma_objects/meshes/plant_tall.dae"
-                            human.logtimestamp = rospy.Time.now().secs
-                            self.insert_srv([human])
+                    for pose in data.people_poses:
+                        if euclidean(pose, [i.position.x, i.position.y]) < 0.3:
+                            is_near = True
+                            break
+                    conditions = conditions and (not is_near)
+                    if conditions:
+                        self.uuids.append(self._tracker_uuids[ind])
+                        data.people_poses.append([i.position.x, i.position.y])
+                        rospy.loginfo(
+                            "%d persons have been detected so far..." % len(data.people_poses)
+                        )
+                        human = SOMA2Object()
+                        human.id = self._tracker_uuids[ind]
+                        human.config = rospy.get_param('~soma_conf', "no_config")
+                        human.type = "Human"
+                        human.pose = i
+                        human.sweepCenter = self.robot_pose
+                        human.mesh = "package://soma_objects/meshes/plant_tall.dae"
+                        human.logtimestamp = rospy.Time.now().secs
+                        self.insert_srv([human])
             end_time = rospy.Time.now()
-        if self.preempt_requested():
-            self.service_preempt()
-            return 'preempted'
+            if self.preempt_requested():
+                self.service_preempt()
+                return 'preempted'
+        data.views_done += 1
+        if data.views_done >= rospy.get_param('~num_of_views', 20):
+            return "found_all_objects"
         return "succeeded"
 
 
