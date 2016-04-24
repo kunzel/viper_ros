@@ -18,7 +18,7 @@ class ObjectSearchActionServer:
 
     _feedback = viper_ros.msg.ObjectSearchFeedback()
     _result   = viper_ros.msg.ObjectSearchResult()
-    
+
     def __init__(self, name):
         self._action_name = name
         self._as = actionlib.SimpleActionServer(self._action_name,
@@ -28,16 +28,16 @@ class ObjectSearchActionServer:
 
         self._as.start()
         rospy.loginfo('Started action server for object search')
-        
-        
+
+
     def execute_cb(self, goal):
 
         rospy.loginfo('Received request: waypoint:%s roi:%s surface_id:%s objects:%s', goal.waypoint, goal.roi_id, goal.surface_roi_id, goal.objects)
-        
+
         # helper variables
         r = rospy.Rate(1)
         success = True
-        
+
         # create the state machine
         sm = ObjectSearchSM()
 
@@ -54,19 +54,20 @@ class ObjectSearchActionServer:
         sm.userdata.surface_roi_id = goal.surface_roi_id
         sm.userdata.objects = ['asus_box'] #goal.objects
         sm.userdata.found_objects = []
+        sm.userdata.people_poses = []
         #sm.userdata.mode   = goal.mode
 
         # set parameters from parameter server
         sm.userdata.soma_map = rospy.get_param('~soma_map', 'aloof')
         sm.userdata.soma_conf = rospy.get_param('~soma_conf', 'aloof')
 
-                
+
         smach_thread = threading.Thread(target = sm.execute)
         smach_thread.start()
 
         #outcome = self.agent.execute_sm_with_introspection()
         r.sleep()
-        
+
         while sm.is_running() and not sm.preempt_requested():
             # check that preempt has not been requested by the client
             if self._as.is_preempt_requested():
@@ -94,7 +95,7 @@ class ObjectSearchActionServer:
 
         if success:
             rospy.loginfo('%s: Succeeded' % self._action_name)
-            self._result.found_objects = sm.userdata.found_objects 
+            self._result.found_objects = sm.userdata.found_objects
             self._as.set_succeeded(self._result)
         else:
             rospy.loginfo('%s: Failed' % self._action_name)
@@ -106,5 +107,5 @@ if __name__ == '__main__':
     rospy.init_node('object_search_server')
     os = ObjectSearchActionServer('search_object')
     rospy.spin()
-    
-    
+
+

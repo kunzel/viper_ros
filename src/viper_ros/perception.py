@@ -28,6 +28,7 @@ from soma2_msgs.msg import SOMA2Object
 import math
 import itertools
 import numpy as np
+from scipy.spatial.distance import euclidean
 import matplotlib.path as mathpath
 
 
@@ -61,9 +62,10 @@ class PerceptionPeople(smach.State):
     def __init__(self):
         smach.State.__init__(
             self, outcomes=['succeeded', 'aborted', 'preempted', 'found_all_objects'],
-            input_keys=['people_poses', 'views_done'], output_keys=['people_poses', 'views_done']
+            input_keys=['people_poses', 'percentage_complete'], output_keys=['people_poses']
         )
 
+        self.is_occupied = False
         self.uuids = list()
         self._ubd_pos = list()
         self._tracker_pos = list()
@@ -85,7 +87,6 @@ class PerceptionPeople(smach.State):
         self.duration = rospy.Duration(
             0.5 * rospy.get_param('~time_window', 120) / rospy.get_param('~num_of_views', 20)
         )
-        # print rospy.get_param('~time_window'), rospy.get_param('~num_of_views')
         self.insert_srv = rospy.ServiceProxy(
             "/soma2/insert_objects", SOMA2InsertObjs
         )
@@ -96,9 +97,12 @@ class PerceptionPeople(smach.State):
         self.robot_pose = pose
 
     def cb(self, ubd_cent, pt):
-        self._tracker_uuids = pt.uuids
-        self._ubd_pos = self.to_world_all(ubd_cent)
-        self._tracker_pos = [i for i in pt.poses]
+        if not self.is_occupied:
+            self.is_occupied = True
+            self._tracker_uuids = pt.uuids
+            self._ubd_pos = self.to_world_all(ubd_cent)
+            self._tracker_pos = [i for i in pt.poses]
+            self.is_occupied = False
 
     def to_world_all(self, pose_arr):
         transformed_pose_arr = list()
@@ -118,6 +122,7 @@ class PerceptionPeople(smach.State):
         return transformed_pose_arr
 
     def execute(self, data):
+        rospy.loginfo("Observing persons...")
         start_time = rospy.Time.now()
         ts = message_filters.ApproximateTimeSynchronizer(
             self.subs, queue_size=5, slop=0.15
@@ -126,43 +131,57 @@ class PerceptionPeople(smach.State):
         rospy.sleep(0.5)
         end_time = rospy.Time.now()
         while not self.preempt_requested() and (end_time - start_time).secs <= self.duration.secs:
-            for i in self._ubd_pos:
-                for ind, j in enumerate(self._tracker_pos):
-                    # conditions to make sure that a person is not detected
-                    # twice and can be verified by UBD logging, also is inside
-                    # the surface (or target) region
-                    conditions = euclidean(
-                        [i.position.x, i.position.y], [j.position.x, j.position.y]
-                    ) < 0.3
-                    conditions = conditions and self._tracker_uuids[ind] not in self.uuids
-                    conditions = conditions and self.region.contains_point([i.position.x, i.position.y])
-                    is_near = False
-                    for pose in data.people_poses:
-                        if euclidean(pose, [i.position.x, i.position.y]) < 0.3:
-                            is_near = True
-                            break
-                    conditions = conditions and (not is_near)
-                    if conditions:
-                        self.uuids.append(self._tracker_uuids[ind])
-                        data.people_poses.append([i.position.x, i.position.y])
-                        rospy.loginfo(
-                            "%d persons have been detected so far..." % len(data.people_poses)
-                        )
-                        human = SOMA2Object()
-                        human.id = self._tracker_uuids[ind]
-                        human.config = rospy.get_param('~soma_conf', "no_config")
-                        human.type = "Human"
-                        human.pose = i
-                        human.sweepCenter = self.robot_pose
-                        human.mesh = "package://soma_objects/meshes/plant_tall.dae"
-                        human.logtimestamp = rospy.Time.now().secs
-                        self.insert_srv([human])
+            if not self.is_occupied:
+                self.is_occupied = True
+                for i in self._ubd_pos:
+                    for ind, j in enumerate(self._tracker_pos):
+                        # conditions to make sure that a person is not detected
+                        # twice and can be verified by UBD logging, also is inside
+                        # the surface (or target) region
+                        conditions = euclidean(
+                            [i.position.x, i.position.y], [j.position.x, j.position.y]
+                        ) < 0.3
+                        conditions = conditions and self._tracker_uuids[ind] not in self.uuids
+                        conditions = conditions and self.region.contains_point([i.position.x, i.position.y])
+                        is_near = False
+                        for pose in data.people_poses:
+                            if euclidean(pose, [i.position.x, i.position.y]) < 0.3:
+                                is_near = True
+                                break
+                        conditions = conditions and (not is_near)
+                        if conditions:
+                            self.uuids.append(self._tracker_uuids[ind])
+                            data.people_poses.append([i.position.x, i.position.y])
+                            rospy.loginfo(
+                                "%d persons have been detected so far..." % len(data.people_poses)
+                            )
+                            human = SOMA2Object()
+                            human.id = self._tracker_uuids[ind]
+                            human.config = rospy.get_param('~soma_conf', "no_config")
+                            human.type = "Human"
+                            human.pose = i
+                            human.sweepCenter = self.robot_pose
+                            human.mesh = "package://soma_objects/meshes/plant_tall.dae"
+                            human.logtimestamp = rospy.Time.now().secs
+                            self.insert_srv([human])
+                self.is_occupied = False
+
             end_time = rospy.Time.now()
             if self.preempt_requested():
                 self.service_preempt()
                 return 'preempted'
-        data.views_done += 1
-        if data.views_done >= rospy.get_param('~num_of_views', 20):
+        rospy.loginfo(
+            "Time to observe persons is %d seconds." % ((end_time - start_time).secs)
+        )
+        rospy.loginfo(
+            "Exploration percentage so far is %.2f." % float(data.percentage_complete)
+        )
+        if len(self.uuids) < 1:
+            rospy.loginfo("No person is found at this view.")
+        if float(data.percentage_complete) >= 90.0:
+            rospy.loginfo(
+                "Total detected persons is %d." % len(data.people_poses)
+            )
             return "found_all_objects"
         return "succeeded"
 
