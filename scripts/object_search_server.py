@@ -54,6 +54,7 @@ class ObjectSearchActionServer:
         sm.userdata.surface_roi_id = goal.surface_roi_id
         sm.userdata.objects = ['asus_box'] #goal.objects
         sm.userdata.found_objects = []
+        sm.userdata.people_poses = []
         #sm.userdata.mode   = goal.mode
 
         # set parameters from parameter server

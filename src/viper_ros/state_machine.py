@@ -39,15 +39,14 @@ class ObjectSearchSM(smach.StateMachine):
         self._goto            = GoTo()
         self._shutdown        = Shutdown()
         
-        perception = rospy.get_param('perception', 'nill')
-        if perception == 'OBJ':
+        perception = rospy.get_param('~perception', 'nill')
+        if perception == 'real':
             reload (percept)
-            self._perception = percepet.PerceptionObj()
-        elif perception == 'HUMAN': 
-            self._perception = percept.PerceptionHuman()
-        else: # perception == 'nill':
+            self._perception = percept.PerceptionReal()
+        elif perception == 'people': # perception == 'nill':
+            self._perception = percept.PerceptionPeople()
+        else:
             self._perception = percept.PerceptionNill()
-
 
         with self:
             smach.StateMachine.add('Setup', self._setup, 
