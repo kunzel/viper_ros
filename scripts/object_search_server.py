@@ -32,14 +32,14 @@ class ObjectSearchActionServer:
         
     def execute_cb(self, goal):
 
-        rospy.loginfo('Received request: waypoint:%s roi:%s surface_id:%s objects:%s', goal.waypoint, goal.roi_id, goal.surface_roi_id, goal.objects)
+        rospy.loginfo('Received request: mode: %s waypoint:%s roi:%s surface_id:%s', goal.mode, goal.waypoint, goal.roi_id, goal.surface_roi_id)
         
         # helper variables
         r = rospy.Rate(1)
         success = True
         
         # create the state machine
-        sm = ObjectSearchSM()
+        sm = ObjectSearchSM(goal.mode)
 
 
 
@@ -51,11 +51,12 @@ class ObjectSearchActionServer:
         # set arguments from call
         sm.userdata.waypoint = goal.waypoint
         sm.userdata.roi_id = goal.roi_id
+
         sm.userdata.surface_roi_id = goal.surface_roi_id
-        sm.userdata.objects = ['asus_box'] #goal.objects
+        sm.userdata.mode = goal.mode
+        sm.userdata.objects = []
         sm.userdata.found_objects = []
         sm.userdata.people_poses = []
-        #sm.userdata.mode   = goal.mode
 
         # set parameters from parameter server
         sm.userdata.soma_map = rospy.get_param('~soma_map', 'aloof')

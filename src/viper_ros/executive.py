@@ -31,8 +31,8 @@ class Executive(smach.State):
     def execute(self, userdata):
         rospy.loginfo('Executing state %s', self.__class__.__name__)
 
-        # rospy.loginfo('NO EXECUTION => ABORT ACTION')
-        # return 'aborted'
+        #rospy.loginfo('NO EXECUTION => ABORT ACTION')
+        #return 'aborted'
 
         if self.preempt_requested():
             self.service_preempt()

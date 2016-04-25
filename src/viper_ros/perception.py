@@ -270,25 +270,22 @@ class PerceptionReal (smach.State):
     def execute(self, userdata):
         # pass
 
-        # rospy.loginfo('Executing state %s', self.__class__.__name__)
-        # self.obj_list = []
+        rospy.loginfo('Executing state %s', self.__class__.__name__)
+
+        # get point cloud
+	# try:
+	# 	rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
+   	# 	pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
+	# 	rospy.loginfo('Got pointcloud')
+       	# 	# pass pc to update service
+	# 	self.update_service(pointcloud)
+	# except rospy.ROSException, e:
+	# 	rospy.logwarn("Failed to get %s" % self.pc_frame)
+	# 	return 'aborted'
+        
+        return 'succeeded' # perception succeeded, but not all objects has been found yet
 
 
-        # if self.preempt_requested():
-        #     self.service_preempt()
-        #     return 'preempted'
-
-
-        # # get point cloud
-	try:
-		rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
-   		pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
-		rospy.loginfo('Got pointcloud')
-       		# pass pc to update service
-		self.update_service(pointcloud)
-	except rospy.ROSException, e:
-		rospy.logwarn("Failed to get %s" % self.pc_frame)
-		return 'aborted'
         # DEFAULT_TOPICS = [("/amcl_pose", PoseWithCovarianceStamped),
         #           ("/head_xtion/rgb/image_color", Image),
         #           ("/head_xtio	n/rgb/camera_info", CameraInfo),
@@ -379,7 +376,7 @@ class PerceptionReal (smach.State):
         # for obj in self.obj_list:
         #     self.found_objs[obj] = True
 
-        # found_all_objects = True
+         # found_all_objects = True
         # for obj in self.found_objs:
         #     if self.found_objs[obj]:
         #         if obj not in userdata.found_objects:
@@ -389,5 +386,5 @@ class PerceptionReal (smach.State):
 
         # if found_all_objects:
         #     return 'found_all_objects'
-        return 'succeeded' # perception succeeded, but not all objects has been found yet
+        
 

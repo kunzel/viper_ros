@@ -10,7 +10,7 @@ from geometry_msgs.msg import *
 
 from geometry_msgs.msg import Point32
 
-from viper.srv import GetKeys, GetKeysRequest
+from viper.srv import GetKeys, GetKeysRequest, SetOctomap, SetOctomapRequest
 
 import viper
 from viper.robots.scitos_simple import ScitosRobot
@@ -126,7 +126,7 @@ class ViewPlanning(smach.State):
     
     def execute(self, userdata):
         robot = ScitosRobot()
-        MIN_COVERAGE = rospy.get_param('~min_overage', 0.95)
+        MIN_COVERAGE = rospy.get_param('~min_coverage', 0.9)
         NUM_OF_VIEWS = userdata.num_of_views
 
         surface_roi = rospy.get_param('surface_roi',[])
@@ -161,6 +161,25 @@ class ViewPlanning(smach.State):
             self.service_preempt()
             return 'preempted'
 
+
+
+        rospy.loginfo("Waiting for octomap set-octomap service")
+        service_name = '/set_octomap'
+        rospy.wait_for_service(service_name)
+        rospy.loginfo("Done")
+
+        try:
+            service = rospy.ServiceProxy(service_name, SetOctomap)
+            req = SetOctomapRequest()
+            req.octomap = octomap
+            rospy.loginfo("Requesting to set octomap from set-octomap service")
+            res = service(req)
+    
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: %s"%e)
+        #####################
+
+            
         rospy.loginfo("Waiting for octomap get-keys service")
         service_name = '/get_keys'
         rospy.wait_for_service(service_name)
@@ -171,7 +190,7 @@ class ViewPlanning(smach.State):
         try:
             service = rospy.ServiceProxy(service_name, GetKeys)
             req = GetKeysRequest()
-            req.octomap = octomap
+            #req.octomap = octomap
             rospy.loginfo("Requesting keys from octomap get-keys service")
             res = service(req)
 
@@ -267,13 +286,14 @@ class ViewPlanning(smach.State):
 
         NUM_OF_PLANS = rospy.get_param('~num_of_plans', 10)
         PLAN_LENGTH = rospy.get_param('~plan_length', 10)
+        BEST_M = rospy.get_param('~best_m', 10)
         TIME_WINDOW = rospy.get_param('~time_window', 120)
         
         RHO  = rospy.get_param('~rho', 1.0)
         rospy.loginfo("Started plan sampling.")
 
         #plans = planner.sample_plans(NUM_OF_PLANS, PLAN_LENGTH, RHO, views, view_values, view_costs, current_view.ID)
-        plans = planner.sample_plans_IJCAI(NUM_OF_PLANS, TIME_WINDOW, RHO, min(10, len(views)), views, view_values, view_costs, current_view, current_view)
+        plans = planner.sample_plans_IJCAI(NUM_OF_PLANS, TIME_WINDOW, RHO, min(BEST_M, len(views)), views, view_values, view_costs, current_view, current_view)
 
         
         rospy.loginfo("Stopped plan sampling.")

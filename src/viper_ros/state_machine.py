@@ -26,7 +26,7 @@ import numpy
 import tf
 
 class ObjectSearchSM(smach.StateMachine):
-    def __init__(self):
+    def __init__(self, mode):
         smach.StateMachine.__init__(self, outcomes=['succeeded',
                                                     'aborted',
                                                     'preempted'])
@@ -40,12 +40,14 @@ class ObjectSearchSM(smach.StateMachine):
         self._shutdown        = Shutdown()
         
         perception = rospy.get_param('~perception', 'nill')
-        if perception == 'real':
+        if mode == 'object':
             reload (percept)
             self._perception = percept.PerceptionReal()
-        elif perception == 'people': # perception == 'nill':
+        elif mode == 'human':
+            reload (percept)
             self._perception = percept.PerceptionPeople()
         else:
+            reload (percept)
             self._perception = percept.PerceptionNill()
 
         with self:
