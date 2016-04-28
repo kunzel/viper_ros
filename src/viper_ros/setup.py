@@ -9,7 +9,7 @@ from sensor_msgs.msg import *
 
 
 from soma_manager.srv import SOMA2QueryObjs, SOMA2QueryObjsRequest
-from soma_msgs.msg import * #from soma_roi_manager.soma_roi import SOMAROIQuery
+#from soma_msgs.msg import * #from soma_roi_manager.soma_roi import SOMAROIQuery
 
 class Setup(smach.State):
     """

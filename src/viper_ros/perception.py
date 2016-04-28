@@ -242,7 +242,7 @@ class PerceptionReal (smach.State):
     def __init__(self):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted', 'found_all_objects'],
-                             input_keys=['found_objects','objects'],
+                             input_keys=['found_objects','objects', 'waypoint'],
                              output_keys=['found_objects'])
 
         self.pc_frame = rospy.get_param('~camera', '/head_xtion/depth_registered/points')
@@ -273,15 +273,15 @@ class PerceptionReal (smach.State):
         rospy.loginfo('Executing state %s', self.__class__.__name__)
 
         # get point cloud
-	# try:
-	# 	rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
-   	# 	pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
-	# 	rospy.loginfo('Got pointcloud')
-       	# 	# pass pc to update service
-	# 	self.update_service(pointcloud)
-	# except rospy.ROSException, e:
-	# 	rospy.logwarn("Failed to get %s" % self.pc_frame)
-	# 	return 'aborted'
+	try:
+		rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
+   		pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
+		rospy.loginfo('Got pointcloud')
+       		# pass pc to update service
+                self.update_service(input=pointcloud,waypoint=userdata.waypoint)  
+	except rospy.ROSException, e:
+		rospy.logwarn("Failed to get %s" % self.pc_frame)
+		return 'aborted'
         
         return 'succeeded' # perception succeeded, but not all objects has been found yet
 

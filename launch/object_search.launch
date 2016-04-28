@@ -1,8 +1,8 @@
 <launch>
   <arg name="camera" default="/head_xtion/depth_registered/points"/>
   <!-- <arg name="camera" default="/camera/depth_registered/points"/> -->
-  <arg name="soma_map" default="bham_lg"/>
-  <arg name="soma_conf" default="bham_lg"/>
+  <arg name="soma_map" default="aloof"/>
+  <arg name="soma_conf" default="aloof"/>
   <arg name="perception" default="nill"/> 
   <param name="perception" type="string" value="$(arg perception)" />  
 
@@ -42,9 +42,13 @@
   </node>
 
   <!-- SEMANTIC SEGMENTATION -->
-  <!--<include file="$(find semantic_segmentation)/launch/semantic_segmentation.launch"/> -->
+  <include file="$(find semantic_segmentation)/launch/semantic_segmentation_integrate.launch"/> 
 
   <!-- SOMA PCL SEGMENTATION-->
-  <!-- <node name="soma_pcl_segmentation" pkg="soma_pcl_segmentation" type="soma_pcl_segmentation_service.py"/> -->
+  <include file="$(find soma_pcl_segmentation)/launch/soma_pcl_segmentation.launch"/> 
 
+  <!-- world modeling --> 
+  <!-- <node name="world_modeling" pkg="world_modeling" type="world_state_manager.py"/> -->
+  
+    
 </launch>
