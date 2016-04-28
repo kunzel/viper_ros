@@ -170,7 +170,7 @@ class PerceptionPeople(smach.State):
 
                             # new code, using world_modeling
                             try:
-                                self.person_update_service(id=str(self._tracker_uuids[ind]),waypoint=userdata.waypoint)
+                                self.person_update_service(id=str(self._tracker_uuids[ind]),waypoint=data.waypoint)
                             except rospy.ROSException, e:
                                 rospy.logerr("Service call failed: %s" % e)
                                 return 'aborted'
