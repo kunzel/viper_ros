@@ -103,7 +103,7 @@ class PerceptionPeople(smach.State):
             self._tracker_uuids = pt.uuids
             self._ubd_pos = self.to_world_all(ubd_cent)
             self._tracker_pos = [i for i in pt.poses]
-            self.is_occupied = False 
+            self.is_occupied = False
 
     def to_world_all(self, pose_arr):
         transformed_pose_arr = list()
@@ -156,16 +156,27 @@ class PerceptionPeople(smach.State):
                             rospy.loginfo(
                                 "%d persons have been detected so far..." % len(data.people_poses)
                             )
-                            human = SOMA2Object()
-                            human.id = self._tracker_uuids[ind]
-                            human.config = rospy.get_param('~soma_conf', "no_config")
-                            human.type = "Human"
-                            human.pose = i
-                            human.sweepCenter = self.robot_pose
-                            human.mesh = "package://soma_objects/meshes/plant_tall.dae"
-                            human.logtimestamp = rospy.Time.now().secs
-                            self.insert_srv([human])
-                self.is_occupied = False 
+
+                            # old code: for reference
+                            #human = SOMA2Object()
+                            #human.id = self._tracker_uuids[ind]
+                            #human.config = rospy.get_param('~soma_conf', "no_config")
+                            #human.type = "Human"
+                            #human.pose = i
+                            #human.sweepCenter = self.robot_pose
+                            #human.mesh = "package://soma_objects/meshes/plant_tall.dae"
+                            #human.logtimestamp = rospy.Time.now().secs
+                            #self.insert_srv([human])
+
+                            # new code, using world_modeling
+                            try:
+                                self.person_update_service(id=str(self._tracker_uuids[ind]),waypoint=userdata.waypoint)
+                            except rospy.ROSException, e:
+                                rospy.logerr("Service call failed: %s" % e)
+                                return 'aborted'
+
+
+                self.is_occupied = False
 
             end_time = rospy.Time.now()
             if self.preempt_requested():
@@ -184,7 +195,7 @@ class PerceptionPeople(smach.State):
                 "Total detected persons is %d." % len(data.people_poses)
             )
             return "found_all_objects"
-            
+
         return "succeeded"
 
 
@@ -253,13 +264,15 @@ class PerceptionReal (smach.State):
         #rospy.wait_for_service(self.ir_service_name)
 
 	self.wu_srv_name = "/update_world_model"
+	self.pu_srv_name = "/update_person_model"
 
 	rospy.loginfo('Waiting for service %s', self.wu_srv_name)
 	rospy.wait_for_service(self.wu_srv_name)
 
         try:
            self.ir_service = rospy.ServiceProxy(self.ir_service_name, recognize)
-	   self.update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate)
+           self.world_update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate)
+           self.person_update_service = rospy.ServiceProxy(self.pu_srv_name, PersonUpdate)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s" % e)
 
@@ -273,16 +286,15 @@ class PerceptionReal (smach.State):
         rospy.loginfo('Executing state %s', self.__class__.__name__)
 
         # get point cloud
-	# try:
-	# 	rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
-   	# 	pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
-	# 	rospy.loginfo('Got pointcloud')
-       	# 	# pass pc to update service
-	# 	self.update_service(pointcloud)
-	# except rospy.ROSException, e:
-	# 	rospy.logwarn("Failed to get %s" % self.pc_frame)
-	# 	return 'aborted'
-        
+        try:
+            rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
+            pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
+            rospy.loginfo('Got pointcloud')
+            self.world_update_service(cloud=pointcloud,waypoint=userdata.waypoint)
+        except rospy.ROSException, e:
+            rospy.logwarn("Failed to get %s" % self.pc_frame)
+            return 'aborted'
+
         return 'succeeded' # perception succeeded, but not all objects has been found yet
 
 
@@ -386,5 +398,3 @@ class PerceptionReal (smach.State):
 
         # if found_all_objects:
         #     return 'found_all_objects'
-        
-
