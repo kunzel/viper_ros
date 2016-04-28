@@ -290,7 +290,7 @@ class PerceptionReal (smach.State):
             rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
             pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
             rospy.loginfo('Got pointcloud')
-            self.world_update_service(cloud=pointcloud,waypoint=userdata.waypoint)
+            self.world_update_service(input=pointcloud,waypoint=userdata.waypoint)
         except rospy.ROSException, e:
             rospy.logwarn("Failed to get %s" % self.pc_frame)
             return 'aborted'

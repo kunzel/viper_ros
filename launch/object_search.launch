@@ -47,8 +47,11 @@
   <!-- SOMA PCL SEGMENTATION-->
   <include file="$(find soma_pcl_segmentation)/launch/soma_pcl_segmentation.launch"/> 
 
-  <!-- world modeling --> 
-  <!-- <node name="world_modeling" pkg="world_modeling" type="world_state_manager.py"/> -->
+  <!-- WORLD MODELING --> 
+  <node name="world_modeling" pkg="world_modeling" type="world_state_manager.py" args="localhost 62345">
+  </node>
   
+  <!-- SEGMENTATION --> 
+  <include file="$(find world_modeling)/launch/test_run_segmentation.launch"/> 
     
 </launch>
