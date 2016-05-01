@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   smach
   smach_ros
   strands_navigation_msgs
+  vision_people_logging
 )
 
 ## System dependencies are found with CMake's conventions

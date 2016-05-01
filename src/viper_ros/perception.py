@@ -24,6 +24,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
 from soma_manager.srv import SOMA2InsertObjs
 from soma2_msgs.msg import SOMA2Object
+from vision_people_logging.srv import CaptureUBD
 
 import math
 import itertools
@@ -90,6 +91,8 @@ class PerceptionPeople(smach.State):
         self.insert_srv = rospy.ServiceProxy(
             "/soma2/insert_objects", SOMA2InsertObjs
         )
+        self.ubd_srv = rospy.ServiceProxy("/vision_logging_service/capture", CaptureUBD)
+        self.ubd_srv.wait_for_service()
         self.robot_pose = Pose()
         rospy.Subscriber("/robot_pose", Pose, self.robot_cb, None, 10)
 
@@ -128,6 +131,7 @@ class PerceptionPeople(smach.State):
             self.subs, queue_size=5, slop=0.15
         )
         ts.registerCallback(self.cb)
+        self.ubd_srv()  # try to capture UBD snapshot to be later stored in world observation
         rospy.sleep(0.5)
         end_time = rospy.Time.now()
         while not self.preempt_requested() and (end_time - start_time).secs <= self.duration.secs:
@@ -155,15 +159,25 @@ class PerceptionPeople(smach.State):
                             rospy.loginfo(
                                 "%d persons have been detected so far..." % len(data.people_poses)
                             )
-                            human = SOMA2Object()
-                            human.id = self._tracker_uuids[ind]
-                            human.config = rospy.get_param('~soma_conf', "no_config")
-                            human.type = "Human"
-                            human.pose = i
-                            human.sweepCenter = self.robot_pose
-                            human.mesh = "package://soma_objects/meshes/plant_tall.dae"
-                            human.logtimestamp = rospy.Time.now().secs
-                            self.insert_srv([human])
+
+                            # old code: for reference
+                            #human = SOMA2Object()
+                            #human.id = self._tracker_uuids[ind]
+                            #human.config = rospy.get_param('~soma_conf', "no_config")
+                            #human.type = "Human"
+                            #human.pose = i
+                            #human.sweepCenter = self.robot_pose
+                            #human.mesh = "package://soma_objects/meshes/plant_tall.dae"
+                            #human.logtimestamp = rospy.Time.now().secs
+                            #self.insert_srv([human])
+
+                            # new code, using world_modeling
+                            try:
+                                self.person_update_service(id=str(self._tracker_uuids[ind]),waypoint=data.waypoint)
+                            except rospy.ROSException, e:
+                                rospy.logerr("Service call failed: %s" % e)
+                                return 'aborted'
+
                 self.is_occupied = False
 
             end_time = rospy.Time.now()
@@ -171,13 +185,13 @@ class PerceptionPeople(smach.State):
                 self.service_preempt()
                 return 'preempted'
         rospy.loginfo(
-            "Time to observe persons is %d seconds." % ((end_time - start_time).secs)
+            "Time to observe persons is %d seconds" % ((end_time - start_time).secs)
         )
         rospy.loginfo(
-            "Exploration percentage so far is %.2f." % float(data.percentage_complete)
+            "Exploration percentage so far is %.2f" % float(data.percentage_complete)
         )
         if len(self.uuids) < 1:
-            rospy.loginfo("No person is found at this view.")
+            rospy.loginfo("No person is found at this view")
         if float(data.percentage_complete) >= 90.0:
             rospy.loginfo(
                 "Total detected persons is %d." % len(data.people_poses)
@@ -240,7 +254,7 @@ class PerceptionReal (smach.State):
     def __init__(self):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted', 'found_all_objects'],
-                             input_keys=['found_objects','objects'],
+                             input_keys=['found_objects','objects', 'waypoint'],
                              output_keys=['found_objects'])
 
         self.pc_frame = rospy.get_param('~camera', '/head_xtion/depth_registered/points')
@@ -251,13 +265,15 @@ class PerceptionReal (smach.State):
         #rospy.wait_for_service(self.ir_service_name)
 
 	self.wu_srv_name = "/update_world_model"
+	self.pu_srv_name = "/update_person_model"
 
 	rospy.loginfo('Waiting for service %s', self.wu_srv_name)
 	rospy.wait_for_service(self.wu_srv_name)
 
         try:
            self.ir_service = rospy.ServiceProxy(self.ir_service_name, recognize)
-	   self.update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate)
+           self.world_update_service = rospy.ServiceProxy(self.wu_srv_name, WorldUpdate)
+           self.person_update_service = rospy.ServiceProxy(self.pu_srv_name, PersonUpdate)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s" % e)
 
@@ -268,25 +284,21 @@ class PerceptionReal (smach.State):
     def execute(self, userdata):
         # pass
 
-        # rospy.loginfo('Executing state %s', self.__class__.__name__)
-        # self.obj_list = []
+        rospy.loginfo('Executing state %s', self.__class__.__name__)
+
+        # get point cloud
+        try:
+            rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
+            pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
+            rospy.loginfo('Got pointcloud')
+            self.world_update_service(input=pointcloud,waypoint=userdata.waypoint)
+        except rospy.ROSException, e:
+            rospy.logwarn("Failed to get %s" % self.pc_frame)
+            return 'aborted'
+
+        return 'succeeded' # perception succeeded, but not all objects has been found yet
 
 
-        # if self.preempt_requested():
-        #     self.service_preempt()
-        #     return 'preempted'
-
-
-        # # get point cloud
-	try:
-		rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
-   		pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
-		rospy.loginfo('Got pointcloud')
-       		# pass pc to update service
-		self.update_service(pointcloud)
-	except rospy.ROSException, e:
-		rospy.logwarn("Failed to get %s" % self.pc_frame)
-		return 'aborted'
         # DEFAULT_TOPICS = [("/amcl_pose", PoseWithCovarianceStamped),
         #           ("/head_xtion/rgb/image_color", Image),
         #           ("/head_xtio	n/rgb/camera_info", CameraInfo),
@@ -377,7 +389,7 @@ class PerceptionReal (smach.State):
         # for obj in self.obj_list:
         #     self.found_objs[obj] = True
 
-        # found_all_objects = True
+         # found_all_objects = True
         # for obj in self.found_objs:
         #     if self.found_objs[obj]:
         #         if obj not in userdata.found_objects:
@@ -387,5 +399,3 @@ class PerceptionReal (smach.State):
 
         # if found_all_objects:
         #     return 'found_all_objects'
-        return 'succeeded' # perception succeeded, but not all objects has been found yet
-

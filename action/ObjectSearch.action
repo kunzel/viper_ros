@@ -2,8 +2,8 @@
 string waypoint  # Specify the waypoint to get associated octomap
 string roi_id    # Specify a ROI FROM that you want to observe
 string surface_roi_id    # Specify a ROI surface that you want to observe
-string[] objects # Specify the objects that you want to search
----
+string mode # either: object, human
+--- 
 # Define the result
 uint32 status_code
 string[] found_objects # Found objects   
