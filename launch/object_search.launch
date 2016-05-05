@@ -18,12 +18,12 @@
 
   <!-- NAV GOAL GENERATOR -->
   <!-- <arg name="map" default="/move_base/global_costmap/costmap"/> -->
-  <arg name="map" default="/map"/>
+  <!-- <arg name="map" default="/map"/>
   <arg name="is_costmap" default="false"/>
   <include file="$(find nav_goals_generator)/launch/nav_goals_generator.launch">
     <arg name="map" value="$(arg map)"/>
     <arg name="is_costmap" default="$(arg is_costmap)"/>
-  </include>
+  </include> -->
 
   <!-- ACTION SERVER -->
   <node name="viper_ros" pkg="viper_ros" type="object_search_server.py" output="screen">
@@ -42,10 +42,10 @@
   </node>
 
   <!-- SEMANTIC SEGMENTATION -->
-  <!-- <include file="$(find semantic_segmentation)/launch/semantic_segmentation_integrate.launch"/> -->
+  <include file="$(find semantic_segmentation)/launch/semantic_segmentation_integrate.launch"/>
 
   <!-- SOMA PCL SEGMENTATION-->
-  <!-- <include file="$(find soma_pcl_segmentation)/launch/soma_pcl_segmentation.launch"/> -->
+  <include file="$(find soma_pcl_segmentation)/launch/soma_pcl_segmentation.launch"/>
 
   <!-- WORLD MODELING --> 
   <node name="world_modeling" pkg="world_modeling" type="world_state_manager.py" args="localhost 62345">
