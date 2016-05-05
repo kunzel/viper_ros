@@ -18,12 +18,12 @@
 
   <!-- NAV GOAL GENERATOR -->
   <!-- <arg name="map" default="/move_base/global_costmap/costmap"/> -->
-  <!-- <arg name="map" default="/map"/>
+  <arg name="map" default="/map"/>
   <arg name="is_costmap" default="false"/>
   <include file="$(find nav_goals_generator)/launch/nav_goals_generator.launch">
     <arg name="map" value="$(arg map)"/>
     <arg name="is_costmap" default="$(arg is_costmap)"/>
-  </include> -->
+  </include>
 
   <!-- ACTION SERVER -->
   <node name="viper_ros" pkg="viper_ros" type="object_search_server.py" output="screen">
