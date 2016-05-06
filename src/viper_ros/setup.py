@@ -9,7 +9,7 @@ from sensor_msgs.msg import *
 
 
 from soma_manager.srv import SOMA2QueryObjs, SOMA2QueryObjsRequest
-from soma_msgs.msg import * #from soma_roi_manager.soma_roi import SOMAROIQuery
+#from soma_msgs.msg import * #from soma_roi_manager.soma_roi import SOMAROIQuery
 
 class Setup(smach.State):
     """
@@ -29,7 +29,7 @@ class Setup(smach.State):
         soma_conf = userdata.soma_conf
         roi_id   = userdata.roi_id
         surface_roi_id   = userdata.surface_roi_id
-        
+
 
         rospy.loginfo("Waiting for soma query service")
         service_name = '/soma2/query_db'
@@ -45,7 +45,7 @@ class Setup(smach.State):
             res = service(req)
             rois = res.rois
             rospy.loginfo("Received  rois: %s", len(res.rois))
-            
+
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s"%e)
 
@@ -64,4 +64,3 @@ class Setup(smach.State):
         rospy.set_param('roi', polygon)
         rospy.set_param('surface_roi', surface_polygon)
         return 'succeeded'
-
