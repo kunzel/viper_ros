@@ -24,6 +24,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray, Pose
 from soma_manager.srv import SOMA2InsertObjs
 from soma2_msgs.msg import SOMA2Object
+from vision_people_logging.srv import CaptureUBD
 
 import math
 import itertools
@@ -62,7 +63,7 @@ class PerceptionPeople(smach.State):
     def __init__(self):
         smach.State.__init__(
             self, outcomes=['succeeded', 'aborted', 'preempted', 'found_all_objects'],
-            input_keys=['people_poses', 'percentage_complete'], output_keys=['people_poses']
+            input_keys=['people_poses', 'percentage_complete', 'waypoint'], output_keys=['people_poses']
         )
 
         self.is_occupied = False
@@ -71,9 +72,7 @@ class PerceptionPeople(smach.State):
         self._tracker_pos = list()
         self._tracker_uuids = list()
         self._tfl = tf.TransformListener()
-        xs = [i[0] for i in rospy.get_param('surface_roi', [])]
-        ys = [i[1] for i in rospy.get_param('surface_roi', [])]
-        self.region = get_polygon(xs, ys)
+
         self.subs = [
             message_filters.Subscriber(
                 rospy.get_param("~ubd_topic", "/upper_body_detector/bounding_box_centres"),
@@ -87,10 +86,19 @@ class PerceptionPeople(smach.State):
         self.duration = rospy.Duration(
             0.5 * rospy.get_param('~time_window', 120) / rospy.get_param('~num_of_views', 20)
         )
-        # print rospy.get_param('~time_window'), rospy.get_param('~num_of_views')
-        self.insert_srv = rospy.ServiceProxy(
-            "/soma2/insert_objects", SOMA2InsertObjs
-        )
+        self.pu_srv_name = "/update_person_model"
+        try:
+            self.person_update_service = rospy.ServiceProxy(self.pu_srv_name, PersonUpdate)
+            self.ubd_srv = rospy.ServiceProxy("/vision_logging_service/capture", CaptureUBD)
+            self.insert_srv = rospy.ServiceProxy(
+                "/soma2/insert_objects", SOMA2InsertObjs
+            )
+            self.ubd_srv.wait_for_service()
+            self.person_update_service.wait_for_service()
+            self.insert_srv.wait_for_service()
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: %s" % e)
+
         self.robot_pose = Pose()
         rospy.Subscriber("/robot_pose", Pose, self.robot_cb, None, 10)
 
@@ -124,6 +132,9 @@ class PerceptionPeople(smach.State):
 
     def execute(self, data):
         rospy.loginfo("Observing persons...")
+        xs = [i[0] for i in rospy.get_param('surface_roi', [])]
+        ys = [i[1] for i in rospy.get_param('surface_roi', [])]
+        region = get_polygon(xs, ys)
         start_time = rospy.Time.now()
         ts = message_filters.ApproximateTimeSynchronizer(
             self.subs, queue_size=5, slop=0.15
@@ -142,16 +153,31 @@ class PerceptionPeople(smach.State):
                         conditions = euclidean(
                             [i.position.x, i.position.y], [j.position.x, j.position.y]
                         ) < 0.3
-                        conditions = conditions and self._tracker_uuids[ind] not in self.uuids
-                        conditions = conditions and self.region.contains_point([i.position.x, i.position.y])
+                        uuid = self._tracker_uuids[ind]
+                        conditions = conditions and uuid not in self.uuids
+                        conditions = conditions and region.contains_point([i.position.x, i.position.y])
                         is_near = False
-                        for pose in data.people_poses:
+                        index = -1
+                        for inde, pose in enumerate(data.people_poses):
                             if euclidean(pose, [i.position.x, i.position.y]) < 0.3:
                                 is_near = True
+                                index = inde
                                 break
                         conditions = conditions and (not is_near)
+                        if is_near and index != -1:
+                            try:
+                                self.ubd_srv()  # try to capture UBD snapshot to be later stored in world observation
+                                rospy.sleep(0.5)
+                                rospy.loginfo("This person has been detected before, updating world model...")
+                                self.person_update_service(id=str(self.uuids[index]), waypoint=data.waypoint)
+                            except rospy.ROSException, e:
+                                rospy.logerr("Service call failed: %s" % e)
+                                return 'aborted'
+
                         if conditions:
-                            self.uuids.append(self._tracker_uuids[ind])
+                            self.ubd_srv()  # try to capture UBD snapshot to be later stored in world observation
+                            rospy.sleep(0.5)
+                            self.uuids.append(uuid)
                             data.people_poses.append([i.position.x, i.position.y])
                             rospy.loginfo(
                                 "%d persons have been detected so far..." % len(data.people_poses)
@@ -175,7 +201,6 @@ class PerceptionPeople(smach.State):
                                 rospy.logerr("Service call failed: %s" % e)
                                 return 'aborted'
 
-
                 self.is_occupied = False
 
             end_time = rospy.Time.now()
@@ -195,7 +220,6 @@ class PerceptionPeople(smach.State):
                 "Total detected persons is %d." % len(data.people_poses)
             )
             return "found_all_objects"
-
         return "succeeded"
 
 
