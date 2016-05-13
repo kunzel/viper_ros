@@ -6,7 +6,7 @@ import json
 
 from std_msgs.msg import *
 from sensor_msgs.msg import *
-
+from std_srvs.srv import Trigger
 
 from soma_manager.srv import SOMA2QueryObjs, SOMA2QueryObjsRequest
 #from soma_msgs.msg import * #from soma_roi_manager.soma_roi import SOMAROIQuery
@@ -29,6 +29,14 @@ class Setup(smach.State):
         soma_conf = userdata.soma_conf
         roi_id   = userdata.roi_id
         surface_roi_id   = userdata.surface_roi_id
+
+        # here we inform the world_modeling package that a sequence of observations is about to begin
+        try:
+            begin_observations_trigger = rospy.ServiceProxy('/begin_observations',Trigger)
+            begin_observations_trigger()
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: %s"%e)
+
 
 
         rospy.loginfo("Waiting for soma query service")
