@@ -12,6 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
   smach_ros
   strands_navigation_msgs
   vision_people_logging
+  geometry_msgs
+  sensor_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -48,11 +51,10 @@ catkin_python_setup()
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  ViewInfo.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -71,7 +73,9 @@ add_action_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
    DEPENDENCIES
-   actionlib_msgs#   nav_goal_msgs#   strands_navigation_msgs
+   actionlib_msgs
+   sensor_msgs
+   geometry_msgs#   nav_goal_msgs#   strands_navigation_msgs
 )
 
 ###################################

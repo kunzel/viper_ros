@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 import roslib; roslib.load_manifest('viper_ros')
 import rospy
+import time
 
 import threading
 
 import actionlib
-
 #from smach_ros import ActionServerWrapper
 
 from  viper_ros.msg import *
@@ -47,6 +47,8 @@ class ObjectSearchActionServer:
         sm.userdata.current_view = 0
 
         sm.userdata.percentage_complete = 0
+
+        sm.userdata.starttime = int(time.time())
 
         # set arguments from call
         sm.userdata.waypoint = goal.waypoint

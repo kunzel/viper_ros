@@ -10,8 +10,12 @@ from actionlib.msg import *
 from scitos_ptu.msg import PtuGotoAction,PtuGotoGoal
 from strands_navigation_msgs.msg import MonitoredNavigationAction, MonitoredNavigationGoal
 
+from mongodb_store.message_store import MessageStoreProxy
+
 from std_msgs.msg import *
 from sensor_msgs.msg import *
+
+from viper_ros.msg import ViewInfo
 
 from viper.core.view import View
 
@@ -24,8 +28,10 @@ class GoTo(smach.State):
     def __init__(self):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted'],
-                             input_keys=['robot_pose','ptu_state'])
+                             input_keys=['waypoint','mode','starttime','robot_pose','ptu_state'])
 
+        self.msg_store = MessageStoreProxy(collection='view_stats')
+        
         self.nav_client = actionlib.SimpleActionClient('monitored_navigation', MonitoredNavigationAction)
         rospy.loginfo("Wait for monitored navigation server")
         self.nav_client.wait_for_server(rospy.Duration(60))
@@ -56,7 +62,19 @@ class GoTo(smach.State):
         res = self.nav_client.get_result()
         rospy.loginfo("Result: %s", str(res))
 	if res.outcome != 'succeeded':
-	  return 'aborted'
+            vinfo = ViewInfo()
+            vinfo.waypoint = userdata.waypoint
+            vinfo.map_name  = rospy.get_param('/topological_map_name', "no_map_name")
+            vinfo.mode = userdate.mode
+            vinfo.starttime = userdate.starttime
+            vinfo.timestamp = int(time.time())
+            vinfo.robot_pose = userdata.robot_pose
+            vinfo.ptu_state = userdata.ptu_state
+            vinfo.nav_failure = True
+            vinfo.success = False
+            vinfo.soma_objs = []
+            self.msg_store.insert(vinfo)
+            return 'aborted'
         rospy.loginfo("Reached nav goal")
 
         if self.preempt_requested():
