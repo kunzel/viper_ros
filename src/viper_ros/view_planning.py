@@ -206,7 +206,10 @@ class ViewPlanning(smach.State):
 
             rospy.loginfo("Received octomap_keys: size:%s", len(octomap_keys))
             print "OCTOMAP KEYS", octomap_keys
-    
+            if len(octomap_keys) == 0:
+                rospy.logerr("Abort search. Octomap has no keys.")
+                return 'aborted'
+                            
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s"%e)
             
@@ -221,47 +224,52 @@ class ViewPlanning(smach.State):
         views = planner.sample_views_coverage_in_roi(NUM_OF_VIEWS, MIN_COVERAGE, octomap, octomap_keys)
         rospy.loginfo('Generate views. Done. (%s views have been generated)' % len(views))
 
+        if len(views) == 0:
+            rospy.logerr("Abort search. View generation failed.")
+            return 'aborted'
+
         if self.preempt_requested():
             self.service_preempt()
             return 'preempted'
 
         view_values = planner.compute_view_values(views, octomap)
 
-        rospy.loginfo("Waiting for soma pcl segmenation")
-        service_name = '/soma_probability_at_view'
-        rospy.wait_for_service(service_name)
-        rospy.loginfo("Done")
-
         print "VIEWS SIZE:", len(views)
 
-        view_probs = dict()
-        for v in views:
-            print v.ID, v.get_keys(), len(v.get_values())
-            try:
-                service = rospy.ServiceProxy(service_name, GetProbabilityAtView)
-                req = GetProbabilityAtViewRequest()
-                req.waypoint = userdata.waypoint
-                req.objects = userdata.objects
-                req.keys = v.get_keys()
-                rospy.loginfo("Requesting probability for view")
-                res = service(req)
-                prob = res.probability
-                rospy.loginfo("Received probability: %s", res.probability)
-                # set value of view
-                view_probs[v.ID] = prob
-            except rospy.ServiceException, e:
-                rospy.logerr("Service call failed: %s"%e)
+        # DO NOT USE SEMANTIC SEGMANTATION FOR TSC DEPLOYMENT
+        # rospy.loginfo("Waiting for soma pcl segmenation")
+        # service_name = '/soma_probability_at_view'
+        # rospy.wait_for_service(service_name)
+        # rospy.loginfo("Done")
+
+        # view_probs = dict()
+        # for v in views:
+        #     print v.ID, v.get_keys(), len(v.get_values())
+        #     try:
+        #         service = rospy.ServiceProxy(service_name, GetProbabilityAtView)
+        #         req = GetProbabilityAtViewRequest()
+        #         req.waypoint = userdata.waypoint
+        #         req.objects = userdata.objects
+        #         req.keys = v.get_keys()
+        #         rospy.loginfo("Requesting probability for view")
+        #         res = service(req)
+        #         prob = res.probability
+        #         rospy.loginfo("Received probability: %s", res.probability)
+        #         # set value of view
+        #         view_probs[v.ID] = prob
+        #     except rospy.ServiceException, e:
+        #         rospy.logerr("Service call failed: %s"%e)
 
             
-        view_values_vis = view_probs  
-        total_sum = sum(view_probs.values())
-        for p in view_probs:
-            view_probs[p] = view_probs[p] / total_sum  
-            view_values_vis[p] = view_probs[p] / total_sum * 100
+        # view_values_vis = view_values  
+        # total_sum = sum(view_values.values())
+        # for p in view_values:
+        #     view_values[p] = float(view_values[p]) / float(total_sum)  
+        #     view_values_vis[p] = float(view_values[p]) / float(total_sum) * 100.0
 
         print view_values
-        print view_probs
-        view_values = view_probs
+        #print view_probs
+        #view_values = view_probs
 
         view_costs = planner.compute_view_costs(views)
         #print view_costs
@@ -285,7 +293,7 @@ class ViewPlanning(smach.State):
             return 'preempted'
 
         NUM_OF_PLANS = rospy.get_param('~num_of_plans', 10)
-        PLAN_LENGTH = rospy.get_param('~plan_length', 10)
+        #PLAN_LENGTH = rospy.get_param('~plan_length', 10)
         BEST_M = rospy.get_param('~best_m', 10)
         TIME_WINDOW = rospy.get_param('~time_window', 120)
         
@@ -328,7 +336,7 @@ class ViewPlanning(smach.State):
                         print idx, val
                         if val > 0.0:
                             print "Create frustum marker with value", val
-                            self.vis.create_frustum_marker(frustum_marker, view, view.get_ptu_pose(), view_values_vis)
+                            self.vis.create_frustum_marker(frustum_marker, view, view.get_ptu_pose(), view_values)
                         idx += 1
                 self.vis.pubfrustum.publish(frustum_marker)
                 #vis.delete(p)
