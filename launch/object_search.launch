@@ -34,7 +34,7 @@
     <param name="time_window" type="int" value="120" /> <!-- Needed by PerceptionPeople to know how long one view should take --> 
     <param name="min_coverage" type="double" value="0.9" />	
     <param name="time_window" type="int" value="180" />
-    <param name="best_m" type="int" value="20"/>	 <!-- max plan length -->
+    <param name="best_m" type="int" value="10"/>	 <!-- max plan length -->
     <param name="num_of_plans" type="int" value="100"/>
     <param name="plan_length" type="int" value="15"/>   <!-- NOT USED!!!! max plan length -->
     <param name="rho" type="double" value="1.0"/>

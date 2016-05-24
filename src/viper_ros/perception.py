@@ -334,8 +334,11 @@ class PerceptionReal (smach.State):
             rospy.loginfo('Got pointcloud')
             res = self.world_update_service(input=pointcloud,waypoint=userdata.waypoint)
 
-            vinfo.success = res.result
-            vinfo.soma_objs = [] #res.soma_objs
+            if len(res.objects) > 0: 
+                vinfo.success = True
+            else:
+                vinfo.success = False
+            vinfo.soma_objs = res.objects
             self.msg_store.insert(vinfo)
             
         except rospy.ROSException, e:

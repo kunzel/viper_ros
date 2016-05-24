@@ -4,6 +4,9 @@ import smach
 import smach_ros
 import json
 
+from viper_ros.msg import ViewInfo
+from mongodb_store.message_store import MessageStoreProxy
+
 from std_msgs.msg import *
 from sensor_msgs.msg import *
 from geometry_msgs.msg import *
@@ -30,6 +33,48 @@ from interactive_markers.interactive_marker_server import *
 from visualization_msgs.msg import MarkerArray
 from std_msgs.msg import ColorRGBA
 
+class Pmf(object):
+
+    def __init__(self):
+        self.d = dict()
+
+    def prob(self, x):
+        if x == -1:
+            return 0.0
+        return self.d[x]  
+
+    def set(self, x, val):
+        self.d[x] = val
+
+    def unset(self, x):
+        if x in self.d:
+            self.d.pop(x)
+
+    def keys(self):
+        return self.d.keys()
+
+    def total(self):
+        total = sum(self.d.itervalues())
+        return total
+        
+    def normalize(self):
+        total = self.total()
+        if total == 0.0:
+            return total
+
+        for x in self.d:
+            self.d[x] /= total
+
+        return total
+
+    def random(self):
+        target = random.random()
+        total = 0.0
+        for x, p in self.d.iteritems():
+            total += p
+            if total >= target:
+                return x
+        return self.keys()[-1]
 
 ################################################################
 # Ray-casting algorithm
@@ -87,8 +132,10 @@ class ViewPlanning(smach.State):
     def __init__(self):
         smach.State.__init__(self,
                              outcomes=['succeeded', 'aborted', 'preempted'],
-                             input_keys=['waypoint','num_of_views','objects', 'surface_roi_id'],
+                             input_keys=['waypoint','mode', 'num_of_views','objects', 'surface_roi_id'],
                              output_keys=['views'])
+        
+        self.msg_store = MessageStoreProxy(collection='view_stats')
         self.robot_poses_pub = rospy.Publisher('robot_poses', PoseArray, queue_size=100)
         self.vis = Vis()
 
@@ -122,12 +169,59 @@ class ViewPlanning(smach.State):
 
         p = Point32(pose.position.x,pose.position.y,0)        
         return is_inside(p, roi.points)
+
+    def get_view_infos(self, waypoint, map_name, mode, nav_failure, success):
+
+        vinfos = []
+        msg_query = { 'waypoint':  waypoint,
+                      'map_name':  map_name,
+                      'mode':  mode,
+                      'nav_failure':  nav_failure,
+                      'success':  success
+        }
+        try:
+            res = self.msg_store.query(ViewInfo._type, msg_query)
+        except:
+            rospy.logwarn("Failed to get view infos")
+            return []
+            
+        for i, vinfo in enumerate(res):
+            print i, vinfo[0].starttime
+            novel_view = True
+            for vi in vinfos:
+                if self.equals(vinfo[0], vi):
+                    novel_view= False
+                    break
+                    
+            if novel_view:
+                vinfos.append(vinfo[0])
+            else:
+                print "Ignore view. It is already included!!!"
+                
+        return vinfos
+
+    def equals(self, v1, v2):
+
+        if v1.robot_pose == v2.robot_pose and v1.ptu_state == v2.ptu_state:
+            return True
+        return False
         
-    
+        
+
     def execute(self, userdata):
         robot = ScitosRobot()
         MIN_COVERAGE = rospy.get_param('~min_coverage', 0.9)
         NUM_OF_VIEWS = userdata.num_of_views
+
+        
+        waypoint = userdata.waypoint
+        mode = userdata.mode
+        map_name = rospy.get_param('/topological_map_name', "no_map_name")
+        nav_failure = False
+        success = True        
+        vinfos = self.get_view_infos(waypoint, map_name, mode, nav_failure, success) 
+        db_views = robot.generate_views_from_view_infos(vinfos)
+
 
         surface_roi = rospy.get_param('surface_roi',[])
         points = []
@@ -221,21 +315,40 @@ class ViewPlanning(smach.State):
 
         planner = ViewPlanner(robot)
         rospy.loginfo('Generate views.')
-        views = planner.sample_views_coverage_in_roi(NUM_OF_VIEWS, MIN_COVERAGE, octomap, octomap_keys)
-        rospy.loginfo('Generate views. Done. (%s views have been generated)' % len(views))
-
-        if len(views) == 0:
+        new_views = planner.sample_views_coverage_in_roi(NUM_OF_VIEWS, MIN_COVERAGE, octomap, octomap_keys)
+        rospy.loginfo('Generate views. Done. (%s views have been generated)' % len(new_views))
+        
+        if len(new_views) == 0:
             rospy.logerr("Abort search. View generation failed.")
             return 'aborted'
 
+        views = []
+        vs = []
+        for v in new_views:
+            vs.append(v.ID)
+            views.append(v)
+        print "NEW views:", len(vs)
+
+        dbvs = []
+        for v in db_views:
+            dbvs.append(v.ID)
+            views.append(v)
+        print "DB views:", len(dbvs)
+        
         if self.preempt_requested():
             self.service_preempt()
             return 'preempted'
 
-        view_values = planner.compute_view_values(views, octomap)
-
         print "VIEWS SIZE:", len(views)
 
+        view_values = planner.compute_view_values(views, octomap)
+
+        #################################################
+        #### TESTING
+        #return 'aborted'
+        ################################################
+
+        
         # DO NOT USE SEMANTIC SEGMANTATION FOR TSC DEPLOYMENT
         # rospy.loginfo("Waiting for soma pcl segmenation")
         # service_name = '/soma_probability_at_view'
@@ -294,14 +407,19 @@ class ViewPlanning(smach.State):
 
         NUM_OF_PLANS = rospy.get_param('~num_of_plans', 10)
         #PLAN_LENGTH = rospy.get_param('~plan_length', 10)
+
+        # TODO: determine BEST_M and/or TIME_WINDOW based on ROI size
         BEST_M = rospy.get_param('~best_m', 10)
         TIME_WINDOW = rospy.get_param('~time_window', 120)
+
+        best_m_given_coverage = min(BEST_M, len(new_views))
+        time_window_given_coverage = min(TIME_WINDOW, len(new_views) * 12.0)
         
         RHO  = rospy.get_param('~rho', 1.0)
         rospy.loginfo("Started plan sampling.")
 
         #plans = planner.sample_plans(NUM_OF_PLANS, PLAN_LENGTH, RHO, views, view_values, view_costs, current_view.ID)
-        plans = planner.sample_plans_IJCAI(NUM_OF_PLANS, TIME_WINDOW, RHO, min(BEST_M, len(views)), views, view_values, view_costs, current_view, current_view)
+        plans = planner.sample_plans_IJCAI(NUM_OF_PLANS, time_window_given_coverage, RHO, best_m_given_coverage, views, view_values, view_costs, current_view, current_view)
 
         
         rospy.loginfo("Stopped plan sampling.")
