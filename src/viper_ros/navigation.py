@@ -65,8 +65,8 @@ class GoTo(smach.State):
             vinfo = ViewInfo()
             vinfo.waypoint = userdata.waypoint
             vinfo.map_name  = rospy.get_param('/topological_map_name', "no_map_name")
-            vinfo.mode = userdate.mode
-            vinfo.starttime = userdate.starttime
+            vinfo.mode = userdata.mode
+            vinfo.starttime = userdata.starttime
             vinfo.timestamp = int(time.time())
             vinfo.robot_pose = userdata.robot_pose
             vinfo.ptu_state = userdata.ptu_state
