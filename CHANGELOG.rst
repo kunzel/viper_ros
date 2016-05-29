@@ -2,8 +2,8 @@
 Changelog for package viper_ros
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.2 (2016-05-30)
+------------------
 * removed application-specific dependencies
 * Contributors: Nick Hawes
 
