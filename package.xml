@@ -21,8 +21,8 @@
   <build_depend>soma_manager</build_depend>
   <build_depend>soma_msgs</build_depend>
   <build_depend>octomap_msgs</build_depend>
-  <build_depend>world_modeling</build_depend>
-  <build_depend>vision_people_logging</build_depend>
+  <!-- <build_depend>world_modeling</build_depend> -->
+  <!-- <build_depend>vision_people_logging</build_depend> -->
   <build_depend>sensor_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>message_generation</build_depend>
@@ -40,8 +40,8 @@
   <run_depend>soma_manager</run_depend>
   <run_depend>soma_msgs</run_depend>
   <run_depend>octomap_msgs</run_depend>
-  <run_depend>world_modeling</run_depend>
-  <run_depend>vision_people_logging</run_depend>
+  <!-- <run_depend>world_modeling</run_depend> -->
+  <!-- <run_depend>vision_people_logging</run_depend> -->
   <run_depend>viper</run_depend>
 
 
