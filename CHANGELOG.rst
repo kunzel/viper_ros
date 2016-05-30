@@ -2,8 +2,8 @@
 Changelog for package viper_ros
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.3 (2016-05-30)
+------------------
 * Removed specific dep
 * Contributors: Nick Hawes
 

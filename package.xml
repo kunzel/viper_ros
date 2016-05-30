@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>viper_ros</name>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
   <description>The ROS integration of the viper package</description>
 
   <maintainer email="l.kunze@cs.bham.ac.uk">Lars Kunze</maintainer>
