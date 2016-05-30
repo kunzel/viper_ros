@@ -11,7 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
   smach
   smach_ros
   strands_navigation_msgs
-  vision_people_logging
   geometry_msgs
   sensor_msgs
   message_generation
