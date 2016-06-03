@@ -281,6 +281,7 @@ class ViewPlanning(smach.State):
 
         voxel_marker = MarkerArray() 
         self.vis.voxel_id = 0
+        octomap_keys = []
         try:
             service = rospy.ServiceProxy(service_name, GetKeys)
             req = GetKeysRequest()
@@ -289,7 +290,7 @@ class ViewPlanning(smach.State):
             res = service(req)
 
             #octomap_keys = res.keys
-            octomap_keys = []
+
             # JUST USE THE KEYS THAT ARE IN THE SURFCE ROI
             for i,pose in enumerate(res.posearray.poses):
                 if self.in_roi(pose,surface_polygon):
@@ -300,12 +301,13 @@ class ViewPlanning(smach.State):
 
             rospy.loginfo("Received octomap_keys: size:%s", len(octomap_keys))
             print "OCTOMAP KEYS", octomap_keys
-            if len(octomap_keys) == 0:
-                rospy.logerr("Abort search. Octomap has no keys.")
-                return 'aborted'
                             
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s"%e)
+
+        if len(octomap_keys) == 0:
+            rospy.logerr("Abort search. Octomap has no keys.")
+            return 'aborted'
             
         self.vis.pubvoxel.publish(voxel_marker)
     
