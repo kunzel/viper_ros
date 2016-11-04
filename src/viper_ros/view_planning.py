@@ -13,11 +13,12 @@ from geometry_msgs.msg import *
 
 from geometry_msgs.msg import Point32
 
+from scitos_ptu_sweep.msg import PTUSweenpAction, PTUSweepGoal
+
 from viper.srv import GetKeys, GetKeysRequest, SetOctomap, SetOctomapRequest
 
 import viper
 from viper.robots.scitos_simple import ScitosRobot
-
 from viper.core.planner import ViewPlanner
 from viper.core.plan import Plan
 from viper.core.view import View
@@ -137,6 +138,12 @@ class ViewPlanning(smach.State):
         
         self.msg_store = MessageStoreProxy(collection='view_stats')
         self.robot_poses_pub = rospy.Publisher('robot_poses', PoseArray, queue_size=100)
+
+        self.ptu_sweep_client = actionlib.SimpleActionClient('PTUSweep', PTUSweepAction)
+        rospy.loginfo("Wait for PTUSweep server")
+        self.ptu_sweep_client.wait_for_server(rospy.Duration(60))
+        rospy.loginfo("Done")
+
         self.vis = Vis()
 
     def get_current_view(self):
@@ -207,7 +214,33 @@ class ViewPlanning(smach.State):
         return False
         
         
-
+    def get_octomap(self, mode):
+        octomap = Octomap()
+        if mode == 'object_full':
+            # call AS for meta room & get dynamic clusters
+            pass
+        elif mode == 'object_mini':
+            # call Jay's mini sweep AS' 
+            pass
+        else: # mode == 'object' or mode == 'human':
+            rospy.loginfo("Waiting for semantic map service")
+            octomap_service_name = '/semantic_map_publisher/SemanticMapPublisher/ObservationOctomapService'
+            rospy.wait_for_service(octomap_service_name)
+            rospy.loginfo("Done")
+            try:
+                octomap_service = rospy.ServiceProxy(octomap_service_name, ObservationOctomapService)
+                req = ObservationOctomapServiceRequest()
+                req.waypoint_id = userdata.waypoint
+                req.resolution = 0.05
+                rospy.loginfo("Requesting octomap from semantic map service")
+                res = octomap_service(req)
+                octomap = res.octomap
+                rospy.loginfo("Received octomap: size:%s resolution:%s", len(octomap.data), octomap.resolution)
+            except rospy.ServiceException, e:
+                rospy.logerr("Service call failed: %s"%e)
+        return octomap
+            
+    
     def execute(self, userdata):
         robot = ScitosRobot()
         MIN_COVERAGE = rospy.get_param('~min_coverage', 0.9)
@@ -231,31 +264,11 @@ class ViewPlanning(smach.State):
 
         surface_polygon = Polygon(points) 
 
-        octomap = Octomap()
-        #octomap_service_name = '/Semantic_map_publisher_node/SemanticMapPublisher/ObservationOctomapService'
-        rospy.loginfo("Waiting for semantic map service")
-        octomap_service_name = '/semantic_map_publisher/SemanticMapPublisher/ObservationOctomapService'
-        rospy.wait_for_service(octomap_service_name)
-        rospy.loginfo("Done")
-        try:
-            octomap_service = rospy.ServiceProxy(octomap_service_name, ObservationOctomapService)
-            req = ObservationOctomapServiceRequest()
-            req.waypoint_id = userdata.waypoint
-            req.resolution = 0.05
-            rospy.loginfo("Requesting octomap from semantic map service")
-            res = octomap_service(req)
-            octomap = res.octomap
-            rospy.loginfo("Received octomap: size:%s resolution:%s", len(octomap.data), octomap.resolution)
-
-        except rospy.ServiceException, e:
-            rospy.logerr("Service call failed: %s"%e)
+        octomap = self.get_octomap(mode) #Octomap()
         
-
         if self.preempt_requested():
             self.service_preempt()
             return 'preempted'
-
-
 
         rospy.loginfo("Waiting for octomap set-octomap service")
         service_name = '/set_octomap'
