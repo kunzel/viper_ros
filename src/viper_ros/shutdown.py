@@ -45,7 +45,7 @@ class Shutdown(smach.State):
         # I'm doing this at the end here because it blocks while the world_modeling system does its processing
         # which could take 5-10 seconds
         try:
-            end_observations_trigger = rospy.ServiceProxy('/end_observations',Trigger)
+            end_observations_trigger = rospy.ServiceProxy('/surface_based_object_learning/end_observation_sequence',Trigger)
             end_observations_trigger()
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s"%e)

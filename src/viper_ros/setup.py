@@ -8,7 +8,8 @@ from std_msgs.msg import *
 from sensor_msgs.msg import *
 from std_srvs.srv import Trigger
 
-from soma_manager.srv import SOMA2QueryObjs, SOMA2QueryObjsRequest
+from soma_msgs.msg import SOMAObject,SOMAROIObject
+from soma_manager.srv import *
 #from soma_msgs.msg import * #from soma_roi_manager.soma_roi import SOMAROIQuery
 
 class Setup(smach.State):
@@ -32,7 +33,7 @@ class Setup(smach.State):
 
         # here we inform the world_modeling package that a sequence of observations is about to begin
         try:
-            begin_observations_trigger = rospy.ServiceProxy('/begin_observations',Trigger)
+            begin_observations_trigger = rospy.ServiceProxy('/surface_based_object_learning/begin_observation_sequence',Trigger)
             begin_observations_trigger()
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: %s"%e)
@@ -40,15 +41,15 @@ class Setup(smach.State):
 
 
         rospy.loginfo("Waiting for soma query service")
-        service_name = '/soma2/query_db'
+        service_name = '/soma/query_rois'
         rospy.wait_for_service(service_name)
         rospy.loginfo("Done")
 
         try:
-            service = rospy.ServiceProxy(service_name, SOMA2QueryObjs)
-            req = SOMA2QueryObjsRequest()
-
-            req.query_type = 2 # just get the ROis
+            service = rospy.ServiceProxy(service_name, SOMAQueryROIs)
+            req = SOMAQueryROIsRequest()
+            req.returnmostrecent = True
+            #req.query_type = 2 # just get the ROis
             rospy.loginfo("Requesting all ROIs")
             res = service(req)
             rois = res.rois
@@ -60,11 +61,11 @@ class Setup(smach.State):
         polygon = []
         surface_polygon = []
         for r in rois:
-            if r.roi_id == roi_id:
+            if r.id == roi_id:
                 rospy.loginfo("Found ROI %s", roi_id)
                 for p in r.posearray.poses:
                     polygon.append([p.position.x, p.position.y])
-            elif r.roi_id == surface_roi_id:
+            elif r.id == surface_roi_id:
                 rospy.loginfo("Found SURFACE ROI %s", surface_roi_id)
                 for p in r.posearray.poses:
                     surface_polygon.append([p.position.x, p.position.y])

@@ -44,7 +44,7 @@ class ObjectSearchSM(smach.StateMachine):
             self._perception = percept.PerceptionReal()
         elif mode == 'human':
             reload (percept)
-            self._perception = percept.PerceptionPeople()
+            #self._perception = percept.PerceptionPeople()
         else:
             reload (percept)
             self._perception = percept.PerceptionNill()
