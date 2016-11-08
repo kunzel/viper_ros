@@ -13,6 +13,19 @@
   <param name="views_at_pose" type="int" value="16" />  
     
   <!-- VIEW EVALUATION -->  
+
+  <!-- DEFAULT FRUSTUM CONFIGURATION -->  
+  <!-- 
+  <param name="frustum_near" type="double" value="0.8"/>
+  <param name="frustum_far" type="double" value="2.5"/>
+  <param name="frustum_angle" type="double" value="40.5"/>  
+  -->
+
+  <!-- EXPERIMENTAL FRUSTUM CONFIGURATION -->  
+  <param name="frustum_near" type="double" value="0.5"/>
+  <param name="frustum_far" type="double" value="2.0"/>
+  <param name="frustum_angle" type="double" value="20"/>  <!-- vertical FOV (focal length 32.5) -->
+
   <arg name="robot" default="scitos_simple"/>
   <include file="$(find viper)/launch/$(arg robot)/_evalaute_views.launch"/>
 
@@ -49,14 +62,14 @@
 
   <!-- WORLD MODELING --> 
   <node name="world_modeling" pkg="world_modeling" type="world_state_manager.py" args="localhost 62345">
-  </node>
+  </node> 
 
   <!-- SEGMENTATION --> 
   <include file="$(find world_modeling)/launch/test_run_segmentation.launch"/> 
 
   <!-- VISION LOGGING -->
-  <include file="$(find vision_people_logging)/launch/logging_ubd.launch"/> <!-- Not Needed, Unless you run PerceptionPeople -->
+  <!-- <include file="$(find vision_people_logging)/launch/logging_ubd.launch"/> --> <!-- Not Needed, Unless you run PerceptionPeople -->
 
   <!-- PEOPLE TRAJECTORY -->
-  <include file="$(find human_trajectory)/launch/human_trajectory.launch"/> <!-- Not Needed, Unless you run PerceptionPeople -->
+  <!-- <include file="$(find human_trajectory)/launch/human_trajectory.launch"/> --> <!-- Not Needed, Unless you run PerceptionPeople -->
 </launch>
