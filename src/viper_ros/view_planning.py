@@ -142,10 +142,10 @@ class ViewPlanning(smach.State):
         self.msg_store = MessageStoreProxy(collection='view_stats')
         self.robot_poses_pub = rospy.Publisher('robot_poses', PoseArray, queue_size=100)
 
-        self.ptu_sweep_client = actionlib.SimpleActionClient('PTUSweep', PTUSweepAction)
-        rospy.loginfo("Wait for PTUSweep server")
-        self.ptu_sweep_client.wait_for_server(rospy.Duration(60))
-        rospy.loginfo("Done")
+        #self.ptu_sweep_client = actionlib.SimpleActionClient('PTUSweep', PTUSweepAction)
+        #rospy.loginfo("Wait for PTUSweep server")
+        #self.ptu_sweep_client.wait_for_server(rospy.Duration(60))
+        #rospy.loginfo("Done")
 
         self.vis = Vis()
 
