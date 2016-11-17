@@ -220,9 +220,17 @@ class ViewPlanning(smach.State):
     def get_octomap(self, mode,waypoint):
         octomap = Octomap()
         if mode == 'object_full':
+            rospy.set_param('min_pan', '-1.57')
+            rospy.set_param('max_pan', '1.57')
+            rospy.set_param('min_tilt', '0.0')
+            rospy.set_param('max_tilt', '0.52')
             # call AS for meta room & get dynamic clusters
             pass
         elif mode == 'object_mini':
+            rospy.set_param('min_pan', '-1.57')
+            rospy.set_param('max_pan', '1.57')
+            rospy.set_param('min_tilt', '0.0')
+            rospy.set_param('max_tilt', '0.52')
             rospy.loginfo("Waiting for initial surface view evaluation")
             eval_action_server_name = "/surface_based_object_learning/evaluate_surface"
             client = actionlib.SimpleActionClient(eval_action_server_name, EvaluateSurfaceAction)
