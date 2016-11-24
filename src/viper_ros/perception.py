@@ -333,7 +333,14 @@ class PerceptionReal (smach.State):
             rospy.loginfo('Waiting for pointcloud: %s', self.pc_frame)
             pointcloud = rospy.wait_for_message(self.pc_frame, PointCloud2 , timeout=60.0)
             rospy.loginfo('Got pointcloud')
-            res = self.process_scene_srv(input=pointcloud,waypoint=userdata.waypoint)
+            rospy.loginfo("MODE: " + userdata.mode)
+            # if false, means that the full BHAM object-learning pipeline will be run on observations
+            # if true, means that only data collection will be performed, with observed scenes saved in soma_llsd
+            collection_mode = False
+            if userdata.mode == 'object_full':
+                collection_mode = True;
+
+            res = self.process_scene_srv(input=pointcloud,waypoint=userdata.waypoint,just_data_collection=collection_mode)
 
             if len(res.objects) > 0:
                 vinfo.success = True
