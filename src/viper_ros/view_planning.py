@@ -29,6 +29,8 @@ from viper.core.robot import Robot
 from octomap_msgs.msg import Octomap
 from semantic_map_publisher.srv import ObservationOctomapServiceRequest, ObservationOctomapService
 from initial_surface_view_evaluation.msg import *
+from initial_surface_view_evaluation.srv import *
+from cloud_merge.msg import *
 
 #from soma_pcl_segmentation.srv import GetProbabilityAtViewRequest, GetProbabilityAtView
 
@@ -224,7 +226,38 @@ class ViewPlanning(smach.State):
             rospy.set_param('max_pan', '1.57')
             rospy.set_param('min_tilt', '0.0')
             rospy.set_param('max_tilt', '0.52')
-            # call AS for meta room & get dynamic clusters
+            try:
+                # call action server to do meta-room at waypoint
+                rospy.loginfo("Doing a metric-map")
+                meta_room_action_server_name = "/do_sweep"
+                client = actionlib.SimpleActionClient(meta_room_action_server_name, SweepAction)
+                client.wait_for_server(rospy.Duration(60))
+                goal = SweepGoal(type = 'medium')
+                client.send_goal(goal)
+                client.wait_for_result(rospy.Duration(60*1)) # usually takes about ~20 seconds
+                # wait for meta-room to be processed
+
+                # get dynamic clusters point cloud
+                rospy.loginfo("waiting to receive dynamic clusters. Timeout 4 minutes....")
+                dynamic_clusters = rospy.wait_for_message("/quasimodo/segmentation/roomObservation/dynamic_clusters",PointCloud2,60*4)
+
+                # call service to turn point cloud to octomap
+                rospy.loginfo("waiting for octomap conversion service")
+                conv_octomap = rospy.ServiceProxy('/surface_based_object_learning/convert_pcd_to_octomap',ConvertCloudToOctomap)
+                rospy.loginfo("Converting point cloud of dynamic clusters to octomap")
+                oct_response = conv_octomap([dynamic_clusters]) #service takes a list, if you want to merge multiple clouds into a single octo
+
+                # do normal view planning
+                octomap = oct_response.octomap
+                rospy.loginfo("All done!")
+                # perceieve using pass_through perception (done later, in perception.py)
+
+            except Exception,e:
+                rospy.logerr("Failed doing object_full task for the following reason")
+                rospy.logerr(e)
+
+
+
             pass
         elif mode == 'object_mini':
             rospy.set_param('min_pan', '-1.57')
