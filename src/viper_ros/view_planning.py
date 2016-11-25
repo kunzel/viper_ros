@@ -232,7 +232,7 @@ class ViewPlanning(smach.State):
                 meta_room_action_server_name = "/do_sweep"
                 client = actionlib.SimpleActionClient(meta_room_action_server_name, SweepAction)
                 client.wait_for_server(rospy.Duration(60))
-                goal = SweepActionGoal(type='medium')
+                goal = SweepGoal(type = 'medium')
                 client.send_goal(goal)
                 client.wait_for_result(rospy.Duration(60*1)) # usually takes about ~20 seconds
                 # wait for meta-room to be processed
