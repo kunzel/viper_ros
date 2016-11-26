@@ -255,10 +255,6 @@ class ViewPlanning(smach.State):
             except Exception,e:
                 rospy.logerr("Failed doing object_full task for the following reason")
                 rospy.logerr(e)
-
-
-
-            pass
         elif mode == 'object_mini':
             rospy.set_param('min_pan', '-1.57')
             rospy.set_param('max_pan', '1.57')
@@ -272,7 +268,6 @@ class ViewPlanning(smach.State):
             client.send_goal(goal)
             client.wait_for_result(rospy.Duration(120)) # usually takes about ~20 seconds, but lets be generous in the case of heavy load
             octomap = client.get_result().octomap
-            pass
         else: # mode == 'object' or mode == 'human':
             rospy.loginfo("Waiting for semantic map service")
             octomap_service_name = '/semantic_map_publisher/SemanticMapPublisher/ObservationOctomapService'

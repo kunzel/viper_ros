@@ -9,7 +9,7 @@ import tf
 import message_filters
 from std_msgs.msg import *
 from sensor_msgs.msg import *
-from world_modeling.srv import *
+#from world_modeling.srv import *
 
 from viper_ros.msg import ViewInfo
 
