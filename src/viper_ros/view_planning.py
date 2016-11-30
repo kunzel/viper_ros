@@ -31,6 +31,7 @@ from semantic_map_publisher.srv import ObservationOctomapServiceRequest, Observa
 from initial_surface_view_evaluation.msg import *
 from initial_surface_view_evaluation.srv import *
 from cloud_merge.msg import *
+import sensor_msgs.point_cloud2 as pc2
 
 #from soma_pcl_segmentation.srv import GetProbabilityAtViewRequest, GetProbabilityAtView
 
@@ -220,7 +221,10 @@ class ViewPlanning(smach.State):
 
 
     def get_octomap(self, mode,waypoint):
-        octomap = Octomap()
+
+        # set this to none initially, as if things fail we can just quit the task
+        octomap = None
+
         if mode == 'object_full':
             rospy.set_param('min_pan', '-1.57')
             rospy.set_param('max_pan', '1.57')
@@ -241,6 +245,17 @@ class ViewPlanning(smach.State):
                 rospy.loginfo("waiting to receive dynamic clusters. Timeout 4 minutes....")
                 dynamic_clusters = rospy.wait_for_message("/quasimodo/segmentation/roomObservation/dynamic_clusters",PointCloud2,60*4)
 
+                # ok, so if this is empty, we should just quit the task
+                # this is accomplished by returning the octomap, which should be None at this point
+                # and is picked up in the execute method and dealt with
+                points_in_cloud = len(pc2.read_points(dynamic_clusters))
+                if(points_in_cloud == 0):
+                    rospy.logerr("No points in dynamic cluster cloud. Quitting task.")
+                    # octomap still hasn't been set here, so it's still None
+                    return octomap
+                else:
+                    rospy.loginfo("There are " + str(points_in_cloud) + " in the dynamic cluster cloud. Continuing task.")
+
                 # call service to turn point cloud to octomap
                 rospy.loginfo("waiting for octomap conversion service")
                 conv_octomap = rospy.ServiceProxy('/surface_based_object_learning/convert_pcd_to_octomap',ConvertCloudToOctomap)
@@ -255,6 +270,10 @@ class ViewPlanning(smach.State):
             except Exception,e:
                 rospy.logerr("Failed doing object_full task for the following reason")
                 rospy.logerr(e)
+
+
+
+            pass
         elif mode == 'object_mini':
             rospy.set_param('min_pan', '-1.57')
             rospy.set_param('max_pan', '1.57')
@@ -268,6 +287,7 @@ class ViewPlanning(smach.State):
             client.send_goal(goal)
             client.wait_for_result(rospy.Duration(120)) # usually takes about ~20 seconds, but lets be generous in the case of heavy load
             octomap = client.get_result().octomap
+            pass
         else: # mode == 'object' or mode == 'human':
             rospy.loginfo("Waiting for semantic map service")
             octomap_service_name = '/semantic_map_publisher/SemanticMapPublisher/ObservationOctomapService'
@@ -312,7 +332,9 @@ class ViewPlanning(smach.State):
 
         octomap = self.get_octomap(mode,waypoint) #Octomap()
 
-        if self.preempt_requested():
+        # octomap is none if the input cloud was empty, in which case we just quit the task
+        # because we have nothing to view plan over
+        if self.preempt_requested() or octomap is None:
             self.service_preempt()
             return 'preempted'
 
