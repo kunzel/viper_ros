@@ -375,9 +375,9 @@ class ViewPlanning(smach.State):
 
             # JUST USE THE KEYS THAT ARE IN THE SURFCE ROI
             for i,pose in enumerate(res.posearray.poses):
-                #if self.in_roi(pose,surface_polygon): # commenting this out, because by here we've *already* filtered by ROI
-                self.vis.create_voxel_marker(voxel_marker, pose)
-                octomap_keys.append(res.keys[i])
+                if self.in_roi(pose,surface_polygon):
+                    self.vis.create_voxel_marker(voxel_marker, pose)
+                    octomap_keys.append(res.keys[i])
 
 
 
