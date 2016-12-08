@@ -248,7 +248,7 @@ class ViewPlanning(smach.State):
                 # ok, so if this is empty, we should just quit the task
                 # this is accomplished by returning the octomap, which should be None at this point
                 # and is picked up in the execute method and dealt with
-                points_in_cloud = len(pc2.read_points(dynamic_clusters))
+                points_in_cloud = len(list(pc2.read_points(dynamic_clusters)))
                 if(points_in_cloud == 0):
                     rospy.logerr("No points in dynamic cluster cloud. Quitting task.")
                     # octomap still hasn't been set here, so it's still None
